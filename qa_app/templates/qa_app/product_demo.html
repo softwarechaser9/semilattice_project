@@ -1,0 +1,190 @@
+{% extends 'qa_app/base.html' %}
+
+{% block title %}Product Demo - Semilattice Q&A{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Hero Section -->
+    <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">Product Demo</h1>
+        <p class="text-xl text-gray-600 mb-8">
+            Experience the power of Semilattice AI for population-based question simulation
+        </p>
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-8 text-white">
+            <h2 class="text-2xl font-semibold mb-4">Simulate Survey Responses from Any Population</h2>
+            <p class="text-lg opacity-90">
+                Ask questions and get predicted response patterns from different populations using advanced AI modeling
+            </p>
+        </div>
+    </div>
+
+    <!-- Demo Features -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        <div class="bg-white rounded-lg shadow p-6 text-center">
+            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Ask Any Question</h3>
+            <p class="text-gray-600">Support for single-choice, multiple-choice, and free-text questions</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Real-time Results</h3>
+            <p class="text-gray-600">Get percentage breakdowns and insights in seconds</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 text-center">
+            <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Multiple Populations</h3>
+            <p class="text-gray-600">Compare responses across different demographic groups</p>
+        </div>
+    </div>
+
+    <!-- Interactive Demo Form -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-900">Try It Now</h2>
+            <p class="text-gray-600 mt-2">Submit a question and see Semilattice AI in action</p>
+        </div>
+        
+        <form method="post" action="{% url 'ask_question' %}" class="p-6">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Population Selection -->
+                <div class="md:col-span-2">
+                    <label for="population_id" class="block text-sm font-medium text-gray-700 mb-2">
+                        Population ID
+                        <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="population_id" 
+                        name="population_id" 
+                        required
+                        class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-4 py-3 text-sm"
+                        placeholder="Enter your Semilattice population ID"
+                    >
+                </div>
+
+                <!-- Question -->
+                <div class="md:col-span-2">
+                    <label for="question" class="block text-sm font-medium text-gray-700 mb-2">
+                        Question
+                        <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="question" 
+                        name="question" 
+                        required
+                        class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-4 py-3 text-sm"
+                        placeholder="What would you like to ask your population?"
+                        value="What is your preferred communication method?"
+                    >
+                </div>
+
+                <!-- Question Type -->
+                <div>
+                    <label for="question_type" class="block text-sm font-medium text-gray-700 mb-2">Question Type</label>
+                    <select 
+                        id="question_type" 
+                        name="question_type"
+                        class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-4 py-3 text-sm bg-white"
+                        onchange="toggleDemoAnswerOptions()"
+                    >
+                        <option value="single-choice">Single Choice</option>
+                        <option value="multiple-choice">Multiple Choice</option>
+                        <option value="free-text">Free Text</option>
+                    </select>
+                </div>
+
+                <!-- Answer Options -->
+                <div id="demo_answer_options_div">
+                    <label for="answer_options" class="block text-sm font-medium text-gray-700 mb-2">Answer Options</label>
+                    <textarea 
+                        id="answer_options" 
+                        name="answer_options"
+                        rows="4"
+                        class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-4 py-3 text-sm"
+                        placeholder="Enter one option per line..."
+                    >Email
+Phone call
+Text message
+Video call
+In-person meeting</textarea>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="mt-8 flex justify-center">
+                <button 
+                    type="submit"
+                    class="inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Run Simulation
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- How It Works -->
+    <div class="mt-12">
+        <h2 class="text-2xl font-bold text-gray-900 text-center mb-8">How It Works</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="text-center">
+                <div class="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-lg">1</div>
+                <h3 class="font-semibold text-gray-900 mb-2">Choose Population</h3>
+                <p class="text-sm text-gray-600">Select from your configured populations or enter a population ID</p>
+            </div>
+            <div class="text-center">
+                <div class="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-lg">2</div>
+                <h3 class="font-semibold text-gray-900 mb-2">Ask Question</h3>
+                <p class="text-sm text-gray-600">Write your question and provide answer options if needed</p>
+            </div>
+            <div class="text-center">
+                <div class="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-lg">3</div>
+                <h3 class="font-semibold text-gray-900 mb-2">AI Processing</h3>
+                <p class="text-sm text-gray-600">Semilattice AI simulates responses based on population characteristics</p>
+            </div>
+            <div class="text-center">
+                <div class="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-lg">4</div>
+                <h3 class="font-semibold text-gray-900 mb-2">View Results</h3>
+                <p class="text-sm text-gray-600">Get detailed percentage breakdowns and insights</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleDemoAnswerOptions() {
+    const questionType = document.getElementById('question_type').value;
+    const answerOptionsDiv = document.getElementById('demo_answer_options_div');
+    
+    if (questionType === 'free-text') {
+        answerOptionsDiv.style.display = 'none';
+    } else {
+        answerOptionsDiv.style.display = 'block';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleDemoAnswerOptions();
+});
+</script>
+{% endblock %}

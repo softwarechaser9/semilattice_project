@@ -1,0 +1,249 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
+from django.contrib import messages
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.urls import reverse
+import json
+import logging
+
+from .models import Population, Question, SimulationResult
+from .services import SemilatticeAPIClient
+
+logger = logging.getLogger(__name__)
+
+
+def home(request):
+    """Home page with question form"""
+    populations = Population.objects.all()
+    recent_questions = Question.objects.select_related('population', 'result').order_by('-created_at')[:10]
+    
+    context = {
+        'populations': populations,
+        'recent_questions': recent_questions,
+    }
+    return render(request, 'qa_app/home.html', context)
+
+
+def product_demo(request):
+    """Product demo page as requested"""
+    populations = Population.objects.all()
+    context = {
+        'populations': populations,
+    }
+    return render(request, 'qa_app/product_demo.html', context)
+
+
+@require_http_methods(["POST"])
+def ask_question(request):
+    """Handle question submission and start Semilattice simulation"""
+    try:
+        # Get form data
+        population_id = request.POST.get('population_id')
+        question_text = request.POST.get('question')
+        question_type = request.POST.get('question_type', 'single-choice')
+        answer_options_text = request.POST.get('answer_options', '')
+        
+        if not population_id or not question_text:
+            messages.error(request, 'Population and question are required.')
+            return redirect('home')
+        
+        # Parse answer options
+        answer_options = []
+        if question_type in ['single-choice', 'multiple-choice'] and answer_options_text:
+            answer_options = [opt.strip() for opt in answer_options_text.split('\n') if opt.strip()]
+            if not answer_options:
+                messages.error(request, 'Answer options are required for choice questions.')
+                return redirect('home')
+        
+        # Get or create population
+        try:
+            population = Population.objects.get(population_id=population_id)
+        except Population.DoesNotExist:
+            population = Population.objects.create(
+                population_id=population_id,
+                name=f"Population {population_id}",
+                description="Auto-created population"
+            )
+        
+        # Create question
+        question = Question.objects.create(
+            population=population,
+            question_text=question_text,
+            question_type=question_type,
+            answer_options=answer_options if answer_options else None,
+            created_by=request.user if request.user.is_authenticated else None
+        )
+        
+        # Start Semilattice simulation
+        client = SemilatticeAPIClient()
+        sim_result = client.simulate_answer(
+            population_id=population_id,
+            question=question_text,
+            question_type=question_type,
+            answer_options=answer_options if answer_options else None
+        )
+        
+        if sim_result["success"]:
+            # Ensure data is JSON serializable before storing
+            try:
+                raw_data = sim_result["data"]
+                # Test JSON serialization
+                json.dumps(raw_data)
+                logger.info("Raw data is JSON serializable")
+            except Exception as e:
+                logger.error(f"Raw data not JSON serializable: {e}")
+                raw_data = {"error": "Data serialization failed", "original_error": str(e)}
+            
+            # Create simulation result record
+            SimulationResult.objects.create(
+                question=question,
+                answer_id=sim_result["answer_id"],
+                status=sim_result["status"],  # Keep original case from API
+                raw_response=raw_data
+            )
+            messages.success(request, 'Question submitted! Simulation in progress...')
+            return redirect('question_detail', question_id=question.id)
+        else:
+            messages.error(request, f'Error starting simulation: {sim_result.get("error", "Unknown error")}')
+            return redirect('home')
+            
+    except Exception as e:
+        logger.error(f"Error in ask_question: {e}")
+        messages.error(request, 'An error occurred while processing your question.')
+        return redirect('home')
+
+
+def question_detail(request, question_id):
+    """Display question and its results"""
+    question = get_object_or_404(Question, id=question_id)
+    
+    context = {
+        'question': question,
+    }
+    return render(request, 'qa_app/question_detail.html', context)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def poll_result(request, question_id):
+    """AJAX endpoint to poll for question results"""
+    try:
+        question = get_object_or_404(Question, id=question_id)
+        
+        if not hasattr(question, 'result'):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No simulation result found'
+            })
+        
+        result = question.result
+        client = SemilatticeAPIClient()
+        
+        # Poll current status
+        status_result = client.get_answer_status(result.answer_id)
+        
+        if status_result["success"]:
+            # Ensure data is JSON serializable before storing
+            try:
+                raw_data = status_result["raw_data"]
+                # Test JSON serialization
+                json.dumps(raw_data)
+                logger.info("Poll result raw data is JSON serializable")
+            except Exception as e:
+                logger.error(f"Poll result raw data not JSON serializable: {e}")
+                raw_data = {"error": "Data serialization failed in poll", "original_error": str(e)}
+            
+            # Update result in database
+            result.status = status_result["status"]  # Keep original case from API
+            result.simulated_answer_percentages = status_result["simulated_answer_percentages"]
+            result.raw_response = raw_data
+            result.save()
+            
+            return JsonResponse({
+                'status': result.status,
+                'is_complete': result.is_complete,
+                'percentages': result.simulated_answer_percentages,
+                'answer_options': question.answer_options
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': status_result.get('error', 'Unknown error')
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in poll_result: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'An error occurred while polling results'
+        })
+
+
+def manage_populations(request):
+    """View to manage populations"""
+    if request.method == 'POST':
+        population_id = request.POST.get('population_id')
+        name = request.POST.get('name')
+        description = request.POST.get('description', '')
+        
+        if population_id and name:
+            population, created = Population.objects.get_or_create(
+                population_id=population_id,
+                defaults={'name': name, 'description': description}
+            )
+            if created:
+                messages.success(request, f'Population "{name}" added successfully!')
+            else:
+                # Update existing population instead of showing "already exists"
+                population.name = name
+                population.description = description
+                population.save()
+                messages.success(request, f'Population "{name}" updated successfully!')
+        else:
+            messages.error(request, 'Population ID and name are required.')
+    
+    populations = Population.objects.all().order_by('name')
+    context = {'populations': populations}
+    return render(request, 'qa_app/manage_populations.html', context)
+
+
+@require_http_methods(["POST"])
+def delete_population(request, population_id):
+    """Delete a population and all its associated questions"""
+    try:
+        population = get_object_or_404(Population, id=population_id)
+        population_name = population.name
+        question_count = population.question_set.count()
+        
+        # Delete the population (this will cascade delete questions and results)
+        population.delete()
+        
+        messages.success(request, f'Population "{population_name}" and {question_count} associated question(s) deleted successfully.')
+    except Exception as e:
+        logger.error(f"Error deleting population {population_id}: {e}")
+        messages.error(request, 'An error occurred while deleting the population.')
+    
+    return redirect('manage_populations')
+
+
+@require_http_methods(["POST"])
+def delete_question(request, question_id):
+    """Delete a specific question and its simulation result"""
+    try:
+        question = get_object_or_404(Question, id=question_id)
+        question_text = question.question_text[:50] + "..." if len(question.question_text) > 50 else question.question_text
+        population_name = question.population.name
+        
+        # Delete the question (this will cascade delete the simulation result due to OneToOneField)
+        question.delete()
+        
+        messages.success(request, f'Question "{question_text}" from population "{population_name}" deleted successfully.')
+        
+        # Redirect to ask questions page
+        return redirect('ask_questions')
+        
+    except Exception as e:
+        logger.error(f"Error deleting question {question_id}: {e}")
+        messages.error(request, 'An error occurred while deleting the question.')
+        return redirect('question_detail', question_id=question_id)
