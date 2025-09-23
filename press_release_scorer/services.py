@@ -28,23 +28,27 @@ class PressReleaseScoringService:
         """
         import time
         start_time = time.time()
-        max_total_time = 300  # 5 minutes max for entire process
+        max_total_time = 1800  # 30 minutes max for entire process (30 questions × 1 min each)
         
-        logger.info(f"Starting score_press_release for user {user.username}")
+        logger.info(f"🔄 Starting score_press_release for user {user.username}")
+        logger.info(f"📊 Total questions to process: 30 (5 categories × 6 questions each)")
+        logger.info(f"⏱️ Estimated time: 10-30 minutes")
+        
         try:
             # Create the main score record
-            logger.info("Creating PressReleaseScore record...")
+            logger.info("📝 Creating PressReleaseScore record...")
             press_release_score = PressReleaseScore.objects.create(
                 press_release_text=press_release_text,
                 total_score=0,  # Will update after scoring
                 created_by=user
             )
-            logger.info(f"Created score record with ID: {press_release_score.id}")
+            logger.info(f"✅ Created score record with ID: {press_release_score.id}")
             
             # Get all questions
             all_questions = get_all_questions()
-            logger.info(f"Retrieved {len(all_questions)} questions")
+            logger.info(f"📋 Retrieved {len(all_questions)} questions")
             total_score = 0
+            question_count = 0
             
             # Process each category
             category_count = len(PRESS_RELEASE_QUESTIONS)
@@ -162,11 +166,11 @@ class PressReleaseScoringService:
                 answer_id = response.get('answer_id')
                 logger.debug(f"Question {question_number}: Got answer_id: {answer_id}")
                 
-                # Poll for results with shorter timeout for production
-                logger.info(f"Question {question_number}: Starting polling (max 45 seconds)...")
+                # Poll for results with sufficient timeout
+                logger.info(f"Question {question_number}: Starting polling (max 60 seconds)...")
                 result = self.semilattice_client.poll_until_complete(
                     answer_id=answer_id,
-                    max_wait_seconds=45  # Reduced for production stability
+                    max_wait_seconds=60  # 1 minute should be sufficient based on test
                 )
                 
                 logger.debug(f"Question {question_number}: Polling completed: {result}")
