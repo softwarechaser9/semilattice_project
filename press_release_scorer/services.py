@@ -26,6 +26,10 @@ class PressReleaseScoringService:
         Returns:
             PressReleaseScore instance with all results
         """
+        import time
+        start_time = time.time()
+        max_total_time = 300  # 5 minutes max for entire process
+        
         logger.info(f"Starting score_press_release for user {user.username}")
         try:
             # Create the main score record
@@ -65,6 +69,12 @@ class PressReleaseScoringService:
                 
                 # Process each question in the category
                 for i, question in enumerate(questions_to_process):
+                    # Check total time limit
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time > max_total_time:
+                        logger.warning(f"Total time limit exceeded ({elapsed_time:.1f}s). Stopping at question {self._get_question_number(category_key, i)}")
+                        break
+                    
                     question_number = self._get_question_number(category_key, i)
                     progress = f"Q{question_number}/30 (Category {current_category}/{category_count})"
                     
@@ -152,11 +162,11 @@ class PressReleaseScoringService:
                 answer_id = response.get('answer_id')
                 logger.debug(f"Question {question_number}: Got answer_id: {answer_id}")
                 
-                # Poll for results with progress tracking
-                logger.info(f"Question {question_number}: Starting polling (max 2 minutes)...")
+                # Poll for results with shorter timeout for production
+                logger.info(f"Question {question_number}: Starting polling (max 45 seconds)...")
                 result = self.semilattice_client.poll_until_complete(
                     answer_id=answer_id,
-                    max_wait_seconds=120  # Increased to 2 minutes for production
+                    max_wait_seconds=45  # Reduced for production stability
                 )
                 
                 logger.debug(f"Question {question_number}: Polling completed: {result}")

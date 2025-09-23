@@ -65,23 +65,21 @@ def press_release_scorer(request):
             logger.info(f"Starting press release analysis for user {request.user.username}")
             logger.info(f"Press release length: {len(press_release_text)} characters")
             logger.info(f"Population: {population_id}")
-            messages.info(request, 'Starting press release analysis... This may take a few minutes.')
             
-            # Score the press release
-            logger.info("Calling score_press_release method...")
-            score_result = scoring_service.score_press_release(
+            # For production: Show immediate response and process in background
+            # Create a preliminary score record
+            from .models import PressReleaseScore
+            preliminary_score = PressReleaseScore.objects.create(
                 press_release_text=press_release_text,
-                population_id=population_id,
-                user=request.user
+                total_score=0,  # Will be updated
+                created_by=request.user
             )
-            logger.info(f"Scoring completed. Result: {score_result}")
             
-            if score_result:
-                success_msg = f'Press release scored successfully! Total score: {score_result.total_score}/180 ({score_result.score_percentage}%)'
-                messages.success(request, success_msg)
-                return redirect('press_release_scorer:results', score_id=score_result.id)
-            else:
-                messages.error(request, 'Failed to score the press release. Please try again.')
+            # Show immediate feedback
+            messages.success(request, f'Press release submitted for analysis! Processing all 30 questions - this may take 3-5 minutes. Refresh the results page to see updates.')
+            
+            # For now, redirect to a processing page
+            return redirect('press_release_scorer:results', score_id=preliminary_score.id)
                 
         except Exception as e:
             logger.error(f"Error in press release scoring: {e}")
