@@ -14,6 +14,7 @@ class PressReleaseScoringService:
     def __init__(self):
         self.semilattice_client = SemilatticeAPIClient()
     
+    # --- Existing synchronous implementation (kept for compatibility) ---
     def score_press_release(self, press_release_text: str, population_id: str, user) -> Optional[PressReleaseScore]:
         """
         Score a press release using all 30 questions
@@ -30,25 +31,21 @@ class PressReleaseScoringService:
         start_time = time.time()
         max_total_time = 1800  # 30 minutes max for entire process (30 questions × 1 min each)
         
-        logger.info(f"🔄 Starting score_press_release for user {user.username}")
-        logger.info(f"📊 Total questions to process: 30 (5 categories × 6 questions each)")
-        logger.info(f"⏱️ Estimated time: 10-30 minutes")
-        
+        logger.info(f"Starting score_press_release for user {user.username}")
         try:
             # Create the main score record
-            logger.info("📝 Creating PressReleaseScore record...")
+            logger.info("Creating PressReleaseScore record...")
             press_release_score = PressReleaseScore.objects.create(
                 press_release_text=press_release_text,
                 total_score=0,  # Will update after scoring
                 created_by=user
             )
-            logger.info(f"✅ Created score record with ID: {press_release_score.id}")
+            logger.info(f"Created score record with ID: {press_release_score.id}")
             
             # Get all questions
             all_questions = get_all_questions()
-            logger.info(f"📋 Retrieved {len(all_questions)} questions")
+            logger.info(f"Retrieved {len(all_questions)} questions")
             total_score = 0
-            question_count = 0
             
             # Process each category
             category_count = len(PRESS_RELEASE_QUESTIONS)
@@ -127,6 +124,74 @@ class PressReleaseScoringService:
                 press_release_score.delete()
             raise
     
+    # --- New incremental single-question scoring for Render-friendly flow ---
+    def score_single_question(self, press_release_score: PressReleaseScore, question_number: int) -> int:
+        """Process a single question (1..30) and persist results incrementally.
+        Returns the score (1..6)."""
+        user = press_release_score.created_by
+        population_id = press_release_score.population_id
+        logger.info(f"[INC] User={user.username} score_id={press_release_score.id} Q{question_number}: start")
+        
+        if not (1 <= question_number <= 30):
+            raise ValueError("question_number must be between 1 and 30")
+        
+        # Prevent duplicate processing
+        existing_q = QuestionScore.objects.filter(category__press_release=press_release_score, question_number=question_number).first()
+        if existing_q:
+            logger.info(f"[INC] Q{question_number} already processed; skipping")
+            return existing_q.score
+        
+        # Determine category and index within category
+        category_key, index_in_category = self._category_and_index_from_global_qn(question_number)
+        category_meta = PRESS_RELEASE_QUESTIONS[category_key]
+        base_question = category_meta['questions'][index_in_category]
+        
+        # Ensure category row exists
+        category_obj, _ = CategoryScore.objects.get_or_create(
+            press_release=press_release_score,
+            category_name=category_key,
+            defaults={
+                'category_display_name': category_meta['display_name'],
+                'score': 0,
+            }
+        )
+        
+        # Build full question with cleaned, truncated PR text
+        cleaned_pr = self._clean_press_release_text(press_release_score.press_release_text)
+        truncated_pr = self._truncate_press_release(cleaned_pr)
+        full_question = f"Please read the following press release {truncated_pr} and consider: {base_question}"
+        
+        # Call Semilattice
+        score = self._get_question_score(full_question, population_id, question_number)
+        
+        # Persist question score
+        QuestionScore.objects.create(
+            category=category_obj,
+            question_text=base_question,
+            question_number=question_number,
+            score=score,
+        )
+        
+        # Update aggregated scores
+        category_obj.score = (category_obj.score or 0) + score
+        category_obj.save(update_fields=['score'])
+        
+        press_release_score.total_score = (press_release_score.total_score or 0) + score
+        press_release_score.processed_questions = (press_release_score.processed_questions or 0) + 1
+        press_release_score.status = 'done' if press_release_score.processed_questions >= 30 else 'running'
+        press_release_score.save(update_fields=['total_score', 'processed_questions', 'status'])
+        
+        logger.info(f"[INC] Q{question_number} scored {score}/6. Progress {press_release_score.processed_questions}/30, total {press_release_score.total_score}/180")
+        return score
+    
+    def _category_and_index_from_global_qn(self, question_number: int):
+        category_order = list(PRESS_RELEASE_QUESTIONS.keys())
+        category_idx = (question_number - 1) // 6
+        index_in_category = (question_number - 1) % 6
+        category_key = category_order[category_idx]
+        return category_key, index_in_category
+    
+    # --- Helpers (kept from original implementation) ---
     def _get_question_number(self, category_key: str, question_index: int) -> int:
         """Calculate the global question number (1-30)"""
         category_order = list(PRESS_RELEASE_QUESTIONS.keys())

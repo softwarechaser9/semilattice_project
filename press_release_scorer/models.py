@@ -8,6 +8,15 @@ class PressReleaseScore(models.Model):
     total_score = models.IntegerField()  # Out of 180 (30 questions × 6 max points)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Added fields for async/incremental processing
+    population_id = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[('pending', 'Pending'), ('running', 'Running'), ('done', 'Done'), ('failed', 'Failed')],
+        default='pending'
+    )
+    processed_questions = models.IntegerField(default=0)
+    error_message = models.TextField(blank=True, null=True)
     
     def __str__(self):
         return f"Press Release Score: {self.total_score}/180 - {self.created_at.strftime('%Y-%m-%d')}"
