@@ -183,6 +183,91 @@ class PressReleaseScoringService:
         
         logger.info(f"[INC] Q{question_number} scored {score}/6. Progress {press_release_score.processed_questions}/30, total {press_release_score.total_score}/180")
         return score
+
+    def process_question_step(self, press_release_score: PressReleaseScore, question_number: int, max_wait_seconds: int = 12) -> Dict:
+        """Start or continue processing a single question with a short server wait.
+        Never blocks longer than max_wait_seconds to avoid platform timeouts.
+        Returns dict with keys: pending(bool), done(bool), question_score(optional), answer_id(optional).
+        """
+        user = press_release_score.created_by
+        population_id = press_release_score.population_id
+        if not (1 <= question_number <= 30):
+            raise ValueError("question_number must be between 1 and 30")
+
+        # Determine category and ensure CategoryScore exists
+        category_key, index_in_category = self._category_and_index_from_global_qn(question_number)
+        category_meta = PRESS_RELEASE_QUESTIONS[category_key]
+        base_question = category_meta['questions'][index_in_category]
+        category_obj, _ = CategoryScore.objects.get_or_create(
+            press_release=press_release_score,
+            category_name=category_key,
+            defaults={
+                'category_display_name': category_meta['display_name'],
+                'score': 0,
+            }
+        )
+
+        # Check if already completed
+        qscore = QuestionScore.objects.filter(category__press_release=press_release_score, question_number=question_number).first()
+        if qscore and qscore.score is not None:
+            logger.info(f"[STEP] score_id={press_release_score.id} Q{question_number} already done")
+            return {"pending": False, "done": True, "question_score": qscore.score}
+
+        # If no record yet, create one with only metadata
+        if not qscore:
+            qscore = QuestionScore.objects.create(
+                category=category_obj,
+                question_text=base_question,
+                question_number=question_number,
+                score=None,
+            )
+
+        # Ensure simulation started
+        if not qscore.semilattice_answer_id:
+            # Build full question with cleaned, truncated PR text
+            cleaned_pr = self._clean_press_release_text(press_release_score.press_release_text)
+            truncated_pr = self._truncate_press_release(cleaned_pr)
+            full_question = f"Please read the following press release {truncated_pr} and consider: {base_question}"
+            logger.info(f"[STEP] score_id={press_release_score.id} Q{question_number} starting simulation")
+            sim = self.semilattice_client.simulate_answer(
+                population_id=population_id,
+                question=full_question,
+                question_type="single-choice",
+                answer_options=["1", "2", "3", "4", "5", "6"],
+            )
+            if not sim or not sim.get("success") or not sim.get("answer_id"):
+                # Retryable: return pending and let client retry
+                logger.warning(f"[STEP] Q{question_number} simulate failed or no answer_id; will retry later: {sim}")
+                return {"pending": True, "done": False}
+            qscore.semilattice_answer_id = sim.get("answer_id")
+            qscore.save(update_fields=["semilattice_answer_id"])
+
+        # Poll for a short period
+        ans_id = qscore.semilattice_answer_id
+        logger.info(f"[STEP] score_id={press_release_score.id} Q{question_number} polling answer {ans_id} for up to {max_wait_seconds}s")
+        result = self.semilattice_client.poll_until_complete(answer_id=ans_id, max_wait_seconds=max_wait_seconds)
+
+        if result and result.get("success") and result.get("status") == "Predicted":
+            # Extract score and finalize
+            score_val = self._extract_score_from_response(result)
+            qscore.score = score_val
+            qscore.raw_response = result  # optional: keep small subset; may be None if SDK object
+            qscore.save(update_fields=["score", "raw_response"])
+
+            # Update aggregates
+            category_obj.score = (category_obj.score or 0) + score_val
+            category_obj.save(update_fields=["score"])
+            press_release_score.total_score = (press_release_score.total_score or 0) + score_val
+            press_release_score.processed_questions = (press_release_score.processed_questions or 0) + 1
+            press_release_score.status = 'done' if press_release_score.processed_questions >= 30 else 'running'
+            press_release_score.save(update_fields=["total_score", "processed_questions", "status"])
+
+            logger.info(f"[STEP] Q{question_number} done with {score_val}/6; progress {press_release_score.processed_questions}/30")
+            return {"pending": False, "done": True, "question_score": score_val}
+
+        # If here, it's not done yet; treat as pending (includes timeouts)
+        logger.info(f"[STEP] Q{question_number} pending; result={result}")
+        return {"pending": True, "done": False}
     
     def _category_and_index_from_global_qn(self, question_number: int):
         category_order = list(PRESS_RELEASE_QUESTIONS.keys())

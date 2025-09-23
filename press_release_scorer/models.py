@@ -54,7 +54,7 @@ class QuestionScore(models.Model):
     category = models.ForeignKey(CategoryScore, on_delete=models.CASCADE, related_name='question_scores')
     question_text = models.TextField()  # Store just the base question text
     question_number = models.IntegerField()  # 1-30
-    score = models.IntegerField()  # 1-6
+    score = models.IntegerField(blank=True, null=True)  # 1-6, can be null until completed
     semilattice_answer_id = models.CharField(max_length=255, blank=True, null=True)
     raw_response = models.JSONField(blank=True, null=True)
     # Note: Full question with embedded press release is sent to API but not stored

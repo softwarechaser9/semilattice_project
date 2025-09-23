@@ -104,7 +104,7 @@
             <!-- Submit Button -->
             <div class="flex items-center justify-between">
                 <div class="text-sm text-gray-600">
-                    <p><strong>Processing flow:</strong> Runs one question per request to avoid timeouts.</p>
+                    <p><strong>Processing flow:</strong> Client polls each question with short server steps to avoid timeouts.</p>
                     <p><strong>Processing time:</strong> ~2–5 minutes total for 30 questions.</p>
                 </div>
                 <button 
@@ -138,6 +138,9 @@
             </div>
             <div class="mt-3 text-sm text-gray-700">
                 Total score so far: <span id="total-score">0</span>/180
+            </div>
+            <div id="resume-hint" class="mt-2 text-xs text-gray-500 hidden">
+                Connection hiccup; retrying automatically…
             </div>
         </div>
     </div>
@@ -174,33 +177,42 @@ function getCSRFToken() {
     return null;
 }
 
-async function postForm(url, data) {
+async function postForm(url, data, opts = {}) {
     const csrf = getCSRFToken();
     const body = new URLSearchParams();
-    // Include CSRF token in body for Django
     if (csrf) body.append('csrfmiddlewaretoken', csrf);
     Object.entries(data).forEach(([k, v]) => body.append(k, v));
-    const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-        },
-        credentials: 'same-origin',
-        body,
-    });
-    return resp.json();
+    const controller = new AbortController();
+    const timeout = opts.timeoutMs || 15000; // 15s per step
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            },
+            credentials: 'same-origin',
+            body,
+            signal: controller.signal,
+        });
+        clearTimeout(id);
+        return resp.json();
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
 }
 
 function showProgress() {
     document.getElementById('progress-panel').classList.remove('hidden');
 }
 
-function setProgress(processed, totalScore) {
+function setProgress(processed, totalScore, currentQ) {
     const percent = Math.round((processed / 30) * 100);
     document.getElementById('progress-bar').style.width = percent + '%';
     document.getElementById('progress-count').textContent = processed;
-    document.getElementById('progress-text').textContent = `Processing question ${processed + 1} of 30…`;
+    document.getElementById('progress-text').textContent = `Processing question ${currentQ} of 30…`;
     document.getElementById('total-score').textContent = totalScore;
 }
 
@@ -214,6 +226,37 @@ function disableForm(disabled) {
     else btn.classList.remove('opacity-50', 'cursor-not-allowed');
 }
 
+async function processQuestionWithPolling(scoreId, q) {
+    const stepUrl = '{% url "press_release_scorer:process_question_step" %}';
+    const maxRetries = 120; // up to ~2–4 min per question worst case
+    let tries = 0;
+    let backoffMs = 1000;
+    while (tries < maxRetries) {
+        tries++;
+        try {
+            const res = await postForm(stepUrl, { score_id: String(scoreId), question_number: String(q) }, { timeoutMs: 15000 });
+            if (!res.success) throw new Error(res.error || 'Step failed');
+
+            // Update progress UI with latest totals
+            const processed = res.processed_questions ?? 0;
+            const totalScore = res.total_score ?? 0;
+            setProgress(processed, totalScore, Math.max(q, processed + 1));
+
+            if (res.done) {
+                return true; // question finished
+            }
+            // pending: wait a bit and try again
+        } catch (err) {
+            // Network or server hiccup: brief pause and continue
+            document.getElementById('resume-hint').classList.remove('hidden');
+        }
+        await new Promise(r => setTimeout(r, backoffMs));
+        // Cap backoff to avoid too slow progress
+        backoffMs = Math.min(backoffMs + 500, 3000);
+    }
+    throw new Error('Exceeded retries while processing question ' + q);
+}
+
 async function runScoringFlow() {
     const populationId = document.getElementById('population_id').value.trim();
     const prText = document.getElementById('press_release_text').value.trim();
@@ -222,25 +265,24 @@ async function runScoringFlow() {
 
     disableForm(true);
     showProgress();
-    setProgress(0, 0);
+    setProgress(0, 0, 1);
 
     // 1) Start session
     const startUrl = '{% url "press_release_scorer:start_scoring" %}';
-    const startRes = await postForm(startUrl, { population_id: populationId, press_release_text: prText });
+    const startRes = await postForm(startUrl, { population_id: populationId, press_release_text: prText }, { timeoutMs: 15000 });
     if (!startRes.success) { alert(startRes.error || 'Failed to start scoring'); disableForm(false); return; }
     const scoreId = startRes.score_id;
 
-    // 2) Process questions sequentially
-    const processUrl = '{% url "press_release_scorer:process_single_question" %}';
-    let processed = 0;
-    let totalScore = 0;
+    // 2) Process questions with short-step polling
     for (let q = 1; q <= 30; q++) {
         document.getElementById('progress-text').textContent = `Processing question ${q} of 30…`;
-        const res = await postForm(processUrl, { score_id: String(scoreId), question_number: String(q) });
-        if (!res.success) { alert(res.error || `Failed on question ${q}`); disableForm(false); return; }
-        processed = res.processed_questions ?? q; // server returns processed count
-        totalScore = res.total_score ?? (totalScore + (res.question_score || 0));
-        setProgress(processed, totalScore);
+        try {
+            await processQuestionWithPolling(scoreId, q);
+        } catch (e) {
+            alert(e.message || (`Failed on question ${q}`));
+            disableForm(false);
+            return;
+        }
     }
 
     // 3) Redirect to results

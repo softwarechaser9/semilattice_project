@@ -102,7 +102,41 @@ def process_single_question(request):
 
 
 @login_required
-@require_http_methods(["GET"])
+@require_http_methods(["POST"]) 
+def process_question_step(request):
+    """Short non-blocking step for a single question. Returns pending/done."""
+    try:
+        score_id = int(request.POST.get('score_id'))
+        question_number = int(request.POST.get('question_number'))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'score_id and question_number are required integers.'}, status=400)
+
+    score = get_object_or_404(PressReleaseScore, id=score_id, created_by=request.user)
+    service = PressReleaseScoringService()
+    try:
+        step = service.process_question_step(score, question_number, max_wait_seconds=12)
+        # Refresh aggregates after potential update
+        score.refresh_from_db()
+        payload = {
+            'success': True,
+            'pending': step.get('pending', False),
+            'done': step.get('done', False),
+            'question_score': step.get('question_score'),
+            'total_score': score.total_score,
+            'processed_questions': score.processed_questions,
+            'status': score.status,
+        }
+        return JsonResponse(payload)
+    except Exception as e:
+        logger.error(f"[STEP] Error during step Q{question_number} for score {score_id}: {e}")
+        score.status = 'failed'
+        score.error_message = str(e)
+        score.save(update_fields=['status', 'error_message'])
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"]) 
 def score_status(request, score_id):
     """Return current status of a scoring session."""
     score = get_object_or_404(PressReleaseScore, id=score_id, created_by=request.user)
