@@ -1,6 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
@@ -13,10 +16,11 @@ from .services import SemilatticeAPIClient
 logger = logging.getLogger(__name__)
 
 
+@login_required
 def home(request):
     """Home page with question form"""
-    populations = Population.objects.all()
-    recent_questions = Question.objects.select_related('population', 'result').order_by('-created_at')[:10]
+    populations = Population.objects.filter(created_by=request.user).order_by('name')
+    recent_questions = Question.objects.select_related('population', 'result').filter(created_by=request.user).order_by('-created_at')[:10]
     
     context = {
         'populations': populations,
@@ -25,15 +29,17 @@ def home(request):
     return render(request, 'qa_app/home.html', context)
 
 
+@login_required
 def product_demo(request):
     """Product demo page as requested"""
-    populations = Population.objects.all()
+    populations = Population.objects.filter(created_by=request.user).order_by('name')
     context = {
         'populations': populations,
     }
     return render(request, 'qa_app/product_demo.html', context)
 
 
+@login_required
 @require_http_methods(["POST"])
 def ask_question(request):
     """Handle question submission and start Semilattice simulation"""
@@ -114,6 +120,7 @@ def ask_question(request):
         return redirect('home')
 
 
+@login_required
 def question_detail(request, question_id):
     """Display question and its results"""
     question = get_object_or_404(Question, id=question_id)
@@ -126,6 +133,7 @@ def question_detail(request, question_id):
 
 @csrf_exempt
 @require_http_methods(["GET"])
+@login_required
 def poll_result(request, question_id):
     """AJAX endpoint to poll for question results"""
     try:
@@ -180,6 +188,7 @@ def poll_result(request, question_id):
         })
 
 
+@login_required
 def manage_populations(request):
     """View to manage populations"""
     if request.method == 'POST':
@@ -190,7 +199,11 @@ def manage_populations(request):
         if population_id and name:
             population, created = Population.objects.get_or_create(
                 population_id=population_id,
-                defaults={'name': name, 'description': description}
+                defaults={
+                    'name': name, 
+                    'description': description,
+                    'created_by': request.user
+                }
             )
             if created:
                 messages.success(request, f'Population "{name}" added successfully!')
@@ -203,12 +216,13 @@ def manage_populations(request):
         else:
             messages.error(request, 'Population ID and name are required.')
     
-    populations = Population.objects.all().order_by('name')
+    populations = Population.objects.filter(created_by=request.user).order_by('name')
     context = {'populations': populations}
     return render(request, 'qa_app/manage_populations.html', context)
 
 
 @require_http_methods(["POST"])
+@login_required
 def delete_population(request, population_id):
     """Delete a population and all its associated questions"""
     try:
@@ -228,6 +242,7 @@ def delete_population(request, population_id):
 
 
 @require_http_methods(["POST"])
+@login_required
 def delete_question(request, question_id):
     """Delete a specific question and its simulation result"""
     try:
@@ -247,3 +262,64 @@ def delete_question(request, question_id):
         logger.error(f"Error deleting question {question_id}: {e}")
         messages.error(request, 'An error occurred while deleting the question.')
         return redirect('question_detail', question_id=question_id)
+
+
+def user_login(request):
+    """Login view"""
+    if request.user.is_authenticated:
+        return redirect('home')
+    
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            messages.success(request, f'Welcome back, {user.username}!')
+            return redirect('home')
+        else:
+            messages.error(request, 'Invalid username or password.')
+    
+    return render(request, 'qa_app/login.html')
+
+
+def user_signup(request):
+    """Signup view"""
+    if request.user.is_authenticated:
+        return redirect('home')
+    
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password1 = request.POST.get('password1')
+        password2 = request.POST.get('password2')
+        
+        # Validation
+        if not all([username, email, password1, password2]):
+            messages.error(request, 'All fields are required.')
+        elif password1 != password2:
+            messages.error(request, 'Passwords do not match.')
+        elif User.objects.filter(username=username).exists():
+            messages.error(request, 'Username already exists.')
+        elif User.objects.filter(email=email).exists():
+            messages.error(request, 'Email already registered.')
+        else:
+            # Create user
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password1
+            )
+            login(request, user)
+            messages.success(request, f'Account created successfully! Welcome, {user.username}!')
+            return redirect('home')
+    
+    return render(request, 'qa_app/signup.html')
+
+
+def user_logout(request):
+    """Logout view"""
+    logout(request)
+    messages.success(request, 'You have been logged out successfully.')
+    return redirect('login')

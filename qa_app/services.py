@@ -299,6 +299,7 @@ class SemilatticeAPIClient:
         Progression: Queued → Running → Predicted
         """
         start_time = time.time()
+        last_status = None
         
         while (time.time() - start_time) < max_wait_seconds:
             result = self.get_answer_status(answer_id)
@@ -308,8 +309,16 @@ class SemilatticeAPIClient:
             
             status = result["status"]
             
+            # Log status changes for better visibility
+            if status != last_status:
+                elapsed = int(time.time() - start_time)
+                logger.info(f"Answer {answer_id}: Status changed to '{status}' after {elapsed}s")
+                last_status = status
+            
             # Status progression: Queued → Running → Predicted
             if status == "Predicted":
+                elapsed = int(time.time() - start_time)
+                logger.info(f"Answer {answer_id}: Completed successfully after {elapsed}s")
                 return result
             elif status in ["Failed", "Error"]:
                 return {
@@ -321,9 +330,11 @@ class SemilatticeAPIClient:
             # Wait before next poll - official SDK uses 1 second intervals
             time.sleep(1)
         
+        elapsed = int(time.time() - start_time)
+        logger.warning(f"Answer {answer_id}: Timeout after {elapsed}s (max: {max_wait_seconds}s), last status: {last_status}")
         return {
             "success": False,
-            "error": "Timeout waiting for simulation to complete",
+            "error": f"Timeout waiting for simulation to complete (waited {elapsed}s, last status: {last_status})",
             "answer_id": answer_id
         }
     

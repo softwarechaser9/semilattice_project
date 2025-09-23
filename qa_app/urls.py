@@ -2,6 +2,12 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # Authentication URLs
+    path('login/', views.user_login, name='login'),
+    path('signup/', views.user_signup, name='signup'),
+    path('logout/', views.user_logout, name='logout'),
+    
+    # Main application URLs
     path('', views.product_demo, name='home'),  # Make product-demo the main page
     path('ask-questions/', views.home, name='ask_questions'),  # Move original home to ask-questions
     path('product-demo/', views.product_demo, name='product_demo'),  # Keep for backward compatibility

@@ -7,15 +7,15 @@
     <!-- Hero Section -->
     <div class="text-center mb-12">
         <h1 class="text-4xl font-bold text-gray-900 mb-4">Product Demo</h1>
-        <p class="text-xl text-gray-600 mb-8">
+        <!-- <p class="text-xl text-gray-600 mb-8">
             Experience the power of Semilattice AI for population-based question simulation
-        </p>
-        <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-8 text-white">
+        </p> -->
+        <!-- <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-8 text-white">
             <h2 class="text-2xl font-semibold mb-4">Simulate Survey Responses from Any Population</h2>
             <p class="text-lg opacity-90">
                 Ask questions and get predicted response patterns from different populations using advanced AI modeling
             </p>
-        </div>
+        </div> -->
     </div>
 
     <!-- Demo Features -->
@@ -65,17 +65,34 @@
                 <!-- Population Selection -->
                 <div class="md:col-span-2">
                     <label for="population_id" class="block text-sm font-medium text-gray-700 mb-2">
-                        Population ID
+                        Select Population
                         <span class="text-red-500">*</span>
                     </label>
-                    <input 
-                        type="text" 
+                    <select 
                         id="population_id" 
                         name="population_id" 
                         required
                         class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-4 py-3 text-sm"
-                        placeholder="Enter your Semilattice population ID"
                     >
+                        <option value="">Choose a population...</option>
+                        {% for population in populations %}
+                            <option value="{{ population.population_id }}">
+                                {{ population.name }} ({{ population.population_id }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                    {% if not populations %}
+                        <p class="mt-1 text-xs text-red-500">
+                            No populations found. Please 
+                            <a href="{% url 'manage_populations' %}" class="text-blue-600 hover:text-blue-700 underline">add a population</a> first.
+                        </p>
+                    {% else %}
+                        <p class="mt-1 text-xs text-gray-500">
+                            Select from your saved populations or 
+                            <a href="{% url 'manage_populations' %}" class="text-blue-600 hover:text-blue-700 underline">manage populations</a>
+                        </p>
+                    {% endif %}
+                </div>
                 </div>
 
                 <!-- Question -->

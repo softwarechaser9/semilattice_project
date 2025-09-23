@@ -8,6 +8,7 @@ class Population(models.Model):
     population_id = models.CharField(max_length=255, unique=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

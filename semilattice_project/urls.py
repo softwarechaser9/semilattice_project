@@ -20,4 +20,5 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('qa_app.urls')),
+    path('press-release-scorer/', include('press_release_scorer.urls')),
 ]

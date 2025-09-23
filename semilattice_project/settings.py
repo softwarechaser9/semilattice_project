@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'qa_app',
+    'press_release_scorer',
 ]
 
 MIDDLEWARE = [
@@ -132,3 +133,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Semilattice API Configuration
 SEMILATTICE_API_KEY = config('SEMILATTICE_API_KEY')
 SEMILATTICE_BASE_URL = config('SEMILATTICE_BASE', default='https://api.semilattice.ai')
+
+# Authentication Configuration
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'login'
