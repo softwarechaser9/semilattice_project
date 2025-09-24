@@ -183,7 +183,7 @@ async function postForm(url, data, opts = {}) {
     if (csrf) body.append('csrfmiddlewaretoken', csrf);
     Object.entries(data).forEach(([k, v]) => body.append(k, v));
     const controller = new AbortController();
-    const timeout = opts.timeoutMs || 15000; // 15s per step
+    const timeout = opts.timeoutMs || 25000; // 25s per step to accommodate 20s server poll
     const id = setTimeout(() => controller.abort(), timeout);
     try {
         const resp = await fetch(url, {
@@ -234,7 +234,7 @@ async function processQuestionWithPolling(scoreId, q) {
     while (tries < maxRetries) {
         tries++;
         try {
-            const res = await postForm(stepUrl, { score_id: String(scoreId), question_number: String(q) }, { timeoutMs: 15000 });
+            const res = await postForm(stepUrl, { score_id: String(scoreId), question_number: String(q) }, { timeoutMs: 25000 });
             if (!res.success) throw new Error(res.error || 'Step failed');
 
             // Update progress UI with latest totals
@@ -251,8 +251,8 @@ async function processQuestionWithPolling(scoreId, q) {
             document.getElementById('resume-hint').classList.remove('hidden');
         }
         await new Promise(r => setTimeout(r, backoffMs));
-        // Cap backoff to avoid too slow progress
-        backoffMs = Math.min(backoffMs + 500, 3000);
+        // Reduce backoff increment since server now waits longer
+        backoffMs = Math.min(backoffMs + 200, 2000);
     }
     throw new Error('Exceeded retries while processing question ' + q);
 }
@@ -269,7 +269,7 @@ async function runScoringFlow() {
 
     // 1) Start session
     const startUrl = '{% url "press_release_scorer:start_scoring" %}';
-    const startRes = await postForm(startUrl, { population_id: populationId, press_release_text: prText }, { timeoutMs: 15000 });
+    const startRes = await postForm(startUrl, { population_id: populationId, press_release_text: prText }, { timeoutMs: 10000 });
     if (!startRes.success) { alert(startRes.error || 'Failed to start scoring'); disableForm(false); return; }
     const scoreId = startRes.score_id;
 

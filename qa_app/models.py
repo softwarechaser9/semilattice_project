@@ -5,11 +5,15 @@ import json
 
 class Population(models.Model):
     """Model to store Semilattice population information"""
-    population_id = models.CharField(max_length=255, unique=True)
+    population_id = models.CharField(max_length=255)  # Removed unique=True so each user can have their own
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        # Each user can only have one population with the same population_id
+        unique_together = [['population_id', 'created_by']]
     
     def __str__(self):
         return f"{self.name} ({self.population_id})"

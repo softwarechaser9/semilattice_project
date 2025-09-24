@@ -196,23 +196,30 @@ def manage_populations(request):
         name = request.POST.get('name')
         description = request.POST.get('description', '')
         
+        logger.info(f"[POPULATION] User {request.user.username} attempting to add population_id='{population_id}', name='{name}'")
+        
         if population_id and name:
-            population, created = Population.objects.get_or_create(
-                population_id=population_id,
-                defaults={
-                    'name': name, 
-                    'description': description,
-                    'created_by': request.user
-                }
-            )
-            if created:
-                messages.success(request, f'Population "{name}" added successfully!')
-            else:
-                # Update existing population instead of showing "already exists"
-                population.name = name
-                population.description = description
-                population.save()
-                messages.success(request, f'Population "{name}" updated successfully!')
+            try:
+                # Use get_or_create for this user - now works since unique constraint is removed
+                population, created = Population.objects.get_or_create(
+                    population_id=population_id,
+                    created_by=request.user,
+                    defaults={
+                        'name': name,
+                        'description': description,
+                    }
+                )
+                if created:
+                    messages.success(request, f'Population "{name}" added successfully!')
+                else:
+                    # Update existing population for this user
+                    population.name = name
+                    population.description = description
+                    population.save()
+                    messages.success(request, f'Population "{name}" updated successfully!')
+            except Exception as e:
+                logger.error(f"Error adding/updating population {population_id}: {e}")
+                messages.error(request, f'Error saving population: {str(e)}')
         else:
             messages.error(request, 'Population ID and name are required.')
     

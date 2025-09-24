@@ -114,7 +114,7 @@ def process_question_step(request):
     score = get_object_or_404(PressReleaseScore, id=score_id, created_by=request.user)
     service = PressReleaseScoringService()
     try:
-        step = service.process_question_step(score, question_number, max_wait_seconds=12)
+        step = service.process_question_step(score, question_number, max_wait_seconds=20)
         # Refresh aggregates after potential update
         score.refresh_from_db()
         payload = {
