@@ -183,7 +183,7 @@ async function postForm(url, data, opts = {}) {
     if (csrf) body.append('csrfmiddlewaretoken', csrf);
     Object.entries(data).forEach(([k, v]) => body.append(k, v));
     const controller = new AbortController();
-    const timeout = opts.timeoutMs || 25000; // 25s per step to accommodate 20s server poll
+    const timeout = opts.timeoutMs || 30000; // 30s per step to accommodate 25s server poll
     const id = setTimeout(() => controller.abort(), timeout);
     try {
         const resp = await fetch(url, {
@@ -228,13 +228,13 @@ function disableForm(disabled) {
 
 async function processQuestionWithPolling(scoreId, q) {
     const stepUrl = '{% url "press_release_scorer:process_question_step" %}';
-    const maxRetries = 120; // up to ~2–4 min per question worst case
+    const maxRetries = 5; // Max ~2 minutes per question if server keeps timing out
     let tries = 0;
-    let backoffMs = 1000;
+    let backoffMs = 2000; // Start with 2s since server waits 25s
     while (tries < maxRetries) {
         tries++;
         try {
-            const res = await postForm(stepUrl, { score_id: String(scoreId), question_number: String(q) }, { timeoutMs: 25000 });
+            const res = await postForm(stepUrl, { score_id: String(scoreId), question_number: String(q) }, { timeoutMs: 30000 });
             if (!res.success) throw new Error(res.error || 'Step failed');
 
             // Update progress UI with latest totals
@@ -251,8 +251,8 @@ async function processQuestionWithPolling(scoreId, q) {
             document.getElementById('resume-hint').classList.remove('hidden');
         }
         await new Promise(r => setTimeout(r, backoffMs));
-        // Reduce backoff increment since server now waits longer
-        backoffMs = Math.min(backoffMs + 200, 2000);
+        // Slower backoff since server waits 25s - most questions should finish in 1 try
+        backoffMs = Math.min(backoffMs * 1.5, 5000);
     }
     throw new Error('Exceeded retries while processing question ' + q);
 }

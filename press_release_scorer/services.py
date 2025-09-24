@@ -184,7 +184,7 @@ class PressReleaseScoringService:
         logger.info(f"[INC] Q{question_number} scored {score}/6. Progress {press_release_score.processed_questions}/30, total {press_release_score.total_score}/180")
         return score
 
-    def process_question_step(self, press_release_score: PressReleaseScore, question_number: int, max_wait_seconds: int = 20) -> Dict:
+    def process_question_step(self, press_release_score: PressReleaseScore, question_number: int, max_wait_seconds: int = 25) -> Dict:
         """Start or continue processing a single question with a short server wait.
         Never blocks longer than max_wait_seconds to avoid platform timeouts.
         Returns dict with keys: pending(bool), done(bool), question_score(optional), answer_id(optional).
@@ -244,8 +244,12 @@ class PressReleaseScoringService:
 
         # Poll for a short period
         ans_id = qscore.semilattice_answer_id
+        import time
+        poll_start = time.time()
         logger.info(f"[STEP] score_id={press_release_score.id} Q{question_number} polling answer {ans_id} for up to {max_wait_seconds}s")
         result = self.semilattice_client.poll_until_complete(answer_id=ans_id, max_wait_seconds=max_wait_seconds)
+        poll_elapsed = time.time() - poll_start
+        logger.info(f"[STEP] Q{question_number} polling took {poll_elapsed:.1f}s")
 
         if result and result.get("success") and result.get("status") == "Predicted":
             # Extract score and finalize
