@@ -51,6 +51,19 @@
                     Sign in
                 </button>
             </div>
+
+            <div class="flex items-center justify-between">
+                <div class="text-sm">
+                    <a href="{% url 'password_reset' %}" class="font-medium text-secondary hover:text-blue-700">
+                        Forgot your password?
+                    </a>
+                </div>
+                <div class="text-sm">
+                    <a href="{% url 'signup' %}" class="font-medium text-secondary hover:text-blue-700">
+                        Don't have an account? Sign up
+                    </a>
+                </div>
+            </div>
         </form>
     </div>
 </div>

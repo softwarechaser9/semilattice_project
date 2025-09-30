@@ -2,7 +2,13 @@ import logging
 import re
 from typing import Dict, List, Optional
 from qa_app.services import SemilatticeAPIClient
-from .constants import get_all_questions, format_question_with_text, PRESS_RELEASE_QUESTIONS
+from .question_helpers import (
+    get_all_questions_from_db, 
+    get_questions_by_category_from_db, 
+    format_question_with_text_from_db,
+    get_question_by_number,
+    validate_question_setup
+)
 from .models import PressReleaseScore, CategoryScore, QuestionScore
 
 logger = logging.getLogger(__name__)
@@ -43,15 +49,16 @@ class PressReleaseScoringService:
             logger.info(f"Created score record with ID: {press_release_score.id}")
             
             # Get all questions
-            all_questions = get_all_questions()
+            all_questions = get_all_questions_from_db()
             logger.info(f"Retrieved {len(all_questions)} questions")
             total_score = 0
             
             # Process each category
-            category_count = len(PRESS_RELEASE_QUESTIONS)
+            categories_dict = get_questions_by_category_from_db()
+            category_count = len(categories_dict)
             current_category = 0
             
-            for category_key, category_data in PRESS_RELEASE_QUESTIONS.items():
+            for category_key, category_data in categories_dict.items():
                 current_category += 1
                 logger.info(f"Processing category {current_category}/{category_count}: {category_data['display_name']}")
                 category_score_obj = CategoryScore.objects.create(
@@ -141,17 +148,20 @@ class PressReleaseScoringService:
             logger.info(f"[INC] Q{question_number} already processed; skipping")
             return existing_q.score
         
-        # Determine category and index within category
-        category_key, index_in_category = self._category_and_index_from_global_qn(question_number)
-        category_meta = PRESS_RELEASE_QUESTIONS[category_key]
-        base_question = category_meta['questions'][index_in_category]
+        # Get question from database
+        question_obj = get_question_by_number(question_number)
+        if not question_obj:
+            raise ValueError(f"Question {question_number} not found in database")
+        
+        category_key = question_obj.category.category_key
+        base_question = question_obj.question_text
         
         # Ensure category row exists
         category_obj, _ = CategoryScore.objects.get_or_create(
             press_release=press_release_score,
             category_name=category_key,
             defaults={
-                'category_display_name': category_meta['display_name'],
+                'category_display_name': question_obj.category.display_name,
                 'score': 0,
             }
         )
@@ -194,15 +204,18 @@ class PressReleaseScoringService:
         if not (1 <= question_number <= 30):
             raise ValueError("question_number must be between 1 and 30")
 
-        # Determine category and ensure CategoryScore exists
-        category_key, index_in_category = self._category_and_index_from_global_qn(question_number)
-        category_meta = PRESS_RELEASE_QUESTIONS[category_key]
-        base_question = category_meta['questions'][index_in_category]
+        # Get question from database and ensure CategoryScore exists
+        question_obj = get_question_by_number(question_number)
+        if not question_obj:
+            raise ValueError(f"Question {question_number} not found in database")
+        
+        category_key = question_obj.category.category_key
+        base_question = question_obj.question_text
         category_obj, _ = CategoryScore.objects.get_or_create(
             press_release=press_release_score,
             category_name=category_key,
             defaults={
-                'category_display_name': category_meta['display_name'],
+                'category_display_name': question_obj.category.display_name,
                 'score': 0,
             }
         )
@@ -274,16 +287,28 @@ class PressReleaseScoringService:
         return {"pending": True, "done": False}
     
     def _category_and_index_from_global_qn(self, question_number: int):
-        category_order = list(PRESS_RELEASE_QUESTIONS.keys())
-        category_idx = (question_number - 1) // 6
-        index_in_category = (question_number - 1) % 6
-        category_key = category_order[category_idx]
-        return category_key, index_in_category
+        """Get category and index from global question number using database"""
+        question_obj = get_question_by_number(question_number)
+        if not question_obj:
+            raise ValueError(f"Question {question_number} not found in database")
+        return question_obj.category.category_key, question_obj.order - 1
     
     # --- Helpers (kept from original implementation) ---
     def _get_question_number(self, category_key: str, question_index: int) -> int:
-        """Calculate the global question number (1-30)"""
-        category_order = list(PRESS_RELEASE_QUESTIONS.keys())
+        """Calculate the global question number (1-30) using database"""
+        # Find the question in the database by category and order
+        from .models import PressReleaseQuestionCategory
+        try:
+            category = PressReleaseQuestionCategory.objects.get(category_key=category_key)
+            question = category.questions.filter(is_active=True, order=question_index + 1).first()
+            if question:
+                return question.global_question_number
+        except PressReleaseQuestionCategory.DoesNotExist:
+            pass
+        
+        # Fallback to old calculation if database lookup fails
+        categories = get_questions_by_category_from_db()
+        category_order = list(categories.keys())
         category_position = category_order.index(category_key)
         return (category_position * 6) + question_index + 1
     
