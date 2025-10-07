@@ -25,9 +25,15 @@
                     <div class="p-6 border-b border-gray-200">
                         <div class="flex items-center justify-between mb-2">
                             <div class="text-2xl font-bold text-blue-600">{{ score.total_score }}/180</div>
-                            <div class="text-sm text-gray-500">{{ score.created_at|date:"M j, Y" }}</div>
+                            <div class="text-right">
+                                <div class="text-sm text-gray-500">{{ score.created_at|date:"M j, Y" }}</div>
+                                <div class="text-xs text-gray-400">{{ score.created_at|date:"g:i A" }}</div>
+                            </div>
                         </div>
                         <div class="text-sm text-gray-600">{{ score.score_percentage }}% credibility</div>
+                        {% if score.population_display_name %}
+                            <div class="text-xs text-gray-500 mt-1">Population: {{ score.population_display_name }}</div>
+                        {% endif %}
                     </div>
                     
                     <!-- Press Release Preview -->
@@ -38,7 +44,7 @@
                         
                         <!-- Category Scores -->
                         <div class="grid grid-cols-5 gap-1 mb-4">
-                            {% for category in score.category_scores.all %}
+                            {% for category in score.get_ordered_categories %}
                                 <div class="text-center">
                                     <div class="text-xs text-gray-600 mb-1">{{ category.category_display_name|truncatechars:8 }}</div>
                                     <div class="text-sm font-medium">{{ category.score }}/36</div>

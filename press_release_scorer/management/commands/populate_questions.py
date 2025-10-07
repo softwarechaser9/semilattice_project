@@ -14,6 +14,12 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **options):
+        # Check if questions already exist
+        existing_questions = PressReleaseQuestion.objects.count()
+        if existing_questions > 0 and not options['overwrite']:
+            self.stdout.write(f'Found {existing_questions} existing questions. Use --overwrite to replace them.')
+            return
+        
         if options['overwrite']:
             self.stdout.write('Deleting existing questions and categories...')
             PressReleaseQuestion.objects.all().delete()

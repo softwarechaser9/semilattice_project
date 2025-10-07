@@ -3,10 +3,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_http_methods
+from django.db.models import Prefetch
 import logging
 
 from qa_app.models import Population
-from .models import PressReleaseScore, CategoryScore
+from .models import PressReleaseScore, CategoryScore, QuestionScore
 from .services import PressReleaseScoringService
 from .constants import PRESS_RELEASE_QUESTIONS
 
@@ -42,8 +43,8 @@ def start_scoring(request):
     # Validation
     if not press_release_text or not population_id:
         return JsonResponse({'success': False, 'error': 'press_release_text and population_id are required.'}, status=400)
-    if len(press_release_text) < 50 or len(press_release_text) > 999:
-        return JsonResponse({'success': False, 'error': 'Press release must be between 50 and 999 characters.'}, status=400)
+    if len(press_release_text) < 999 or len(press_release_text) > 9999:
+        return JsonResponse({'success': False, 'error': 'Press release must be between 999 and 9999 characters.'}, status=400)
     cleaned_text = press_release_text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').strip()
     if not cleaned_text:
         return JsonResponse({'success': False, 'error': 'Invalid press release content.'}, status=400)
@@ -153,7 +154,22 @@ def score_status(request, score_id):
 def press_release_results(request, score_id):
     """Display press release scoring results"""
     score = get_object_or_404(PressReleaseScore, id=score_id, created_by=request.user)
-    categories = CategoryScore.objects.filter(press_release=score).prefetch_related('question_scores')
+    
+    # Get categories in consistent order using the model method
+    categories = score.get_ordered_categories()
+    
+    # Add population display name if available
+    if score.population_id:
+        try:
+            population = Population.objects.get(
+                population_id=score.population_id,
+                created_by=request.user
+            )
+            score.population_display_name = f"{population.name} ({score.population_id})"
+        except Population.DoesNotExist:
+            score.population_display_name = score.population_id
+    else:
+        score.population_display_name = None
     
     context = {
         'score': score,
@@ -170,6 +186,25 @@ def press_release_results(request, score_id):
 def press_release_history(request):
     """Display user's press release scoring history"""
     scores = PressReleaseScore.objects.filter(created_by=request.user).order_by('-created_at')
+    
+    # Get population names for scores that have population_ids
+    population_ids = [score.population_id for score in scores if score.population_id]
+    if population_ids:
+        populations = Population.objects.filter(
+            population_id__in=population_ids, 
+            created_by=request.user
+        )
+        population_names = {pop.population_id: pop.name for pop in populations}
+        
+        # Add population names to score objects (temporary attribute)
+        for score in scores:
+            if score.population_id and score.population_id in population_names:
+                score.population_display_name = f"{population_names[score.population_id]} ({score.population_id})"
+            else:
+                score.population_display_name = score.population_id if score.population_id else None
+    else:
+        for score in scores:
+            score.population_display_name = score.population_id if score.population_id else None
     
     context = {
         'scores': scores

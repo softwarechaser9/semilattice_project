@@ -87,17 +87,17 @@
                     name="press_release_text" 
                     rows="12"
                     required
-                    minlength="50"
-                    maxlength="999"
+                    minlength="999"
+                    maxlength="9999"
                     class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2"
                     placeholder="Paste your press release here..."
                     oninput="updateCharCount()"
                 ></textarea>
                 <div class="mt-1 flex justify-between items-center">
                     <p class="text-xs text-gray-500">
-                        Minimum 50 characters, maximum 999 characters. The AI will analyze this text across 30 different criteria.
+                        Minimum 999 characters, maximum 9999 characters. The AI will analyze this text across 30 different criteria.
                     </p>
-                    <p id="char-count" class="text-xs text-gray-500">0/999</p>
+                    <p id="char-count" class="text-xs text-gray-500">0/9999</p>
                 </div>
             </div>
 
@@ -158,11 +158,11 @@ function updateCharCount() {
     const textarea = document.getElementById('press_release_text');
     const charCount = document.getElementById('char-count');
     const currentLength = textarea.value.length;
-    const maxLength = 999;
+    const maxLength = 9999;
     
     charCount.textContent = currentLength + '/' + maxLength;
     
-    if (currentLength < 50) {
+    if (currentLength < 999) {
         charCount.className = 'text-xs text-red-500';
     } else if (currentLength > maxLength * 0.9) {
         charCount.className = 'text-xs text-yellow-600';
@@ -261,7 +261,7 @@ async function runScoringFlow() {
     const populationId = document.getElementById('population_id').value.trim();
     const prText = document.getElementById('press_release_text').value.trim();
     if (!populationId) { alert('Please select a population.'); return; }
-    if (prText.length < 50) { alert('Press release must be at least 50 characters.'); return; }
+    if (prText.length < 999) { alert('Press release must be at least 999 characters.'); return; }
 
     disableForm(true);
     showProgress();

@@ -282,11 +282,22 @@ def user_login(request):
         
         user = authenticate(request, username=username, password=password)
         if user is not None:
-            login(request, user)
-            messages.success(request, f'Welcome back, {user.username}!')
-            return redirect('home')
+            if user.is_active:
+                login(request, user)
+                messages.success(request, f'Welcome back, {user.username}!')
+                return redirect('home')
+            else:
+                messages.warning(request, 'Your account is pending approval. Please wait for an administrator to activate your account.')
         else:
-            messages.error(request, 'Invalid username or password.')
+            # Check if user exists but wrong password vs doesn't exist
+            try:
+                existing_user = User.objects.get(username=username)
+                if not existing_user.is_active:
+                    messages.warning(request, 'Your account is pending approval. Please wait for an administrator to activate your account.')
+                else:
+                    messages.error(request, 'Invalid username or password.')
+            except User.DoesNotExist:
+                messages.error(request, 'Invalid username or password.')
     
     return render(request, 'qa_app/login.html')
 
@@ -312,15 +323,15 @@ def user_signup(request):
         elif User.objects.filter(email=email).exists():
             messages.error(request, 'Email already registered.')
         else:
-            # Create user
+            # Create user (inactive by default - needs admin approval)
             user = User.objects.create_user(
                 username=username,
                 email=email,
-                password=password1
+                password=password1,
+                is_active=False  # Require admin approval
             )
-            login(request, user)
-            messages.success(request, f'Account created successfully! Welcome, {user.username}!')
-            return redirect('home')
+            messages.success(request, f'Account created successfully! Your account is pending approval. You will be able to log in once an administrator approves your account.')
+            return redirect('login')
     
     return render(request, 'qa_app/signup.html')
 

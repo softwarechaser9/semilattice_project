@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Prefetch
 from django.contrib.auth.models import User
 
 
@@ -24,6 +25,22 @@ class PressReleaseScore(models.Model):
     @property
     def score_percentage(self):
         return round((self.total_score / 180) * 100, 1)
+    
+    def get_ordered_categories(self):
+        """Get category scores in the admin-defined order with ordered questions"""
+        # Get the ordering from PressReleaseQuestionCategory (admin-configurable)
+        admin_categories = PressReleaseQuestionCategory.objects.all().order_by('order', 'display_name')
+        category_order = [cat.category_key for cat in admin_categories]
+        
+        # Get all categories for this press release
+        # Question ordering is handled separately in detailed views
+        categories = self.category_scores.all()
+        
+        # Create a dictionary for efficient lookup
+        categories_dict = {cat.category_name: cat for cat in categories}
+        
+        # Return categories in the admin-defined order
+        return [categories_dict[cat_name] for cat_name in category_order if cat_name in categories_dict]
 
 
 class CategoryScore(models.Model):
@@ -61,6 +78,9 @@ class QuestionScore(models.Model):
     
     def __str__(self):
         return f"Q{self.question_number}: {self.score}/6"
+    
+    class Meta:
+        ordering = ['question_number']
 
 
 class PressReleaseQuestionCategory(models.Model):
