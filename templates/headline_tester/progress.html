@@ -64,14 +64,6 @@
         </div>
     </div>
 
-    <!-- Headlines Status -->
-    <div id="headlines-container" class="bg-white rounded-lg shadow p-8 hidden">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Headlines Being Tested</h3>
-        <div id="headlines-list" class="space-y-3">
-            <!-- Headlines will be populated by JavaScript -->
-        </div>
-    </div>
-
     <!-- Error Message -->
     <div id="error-container" class="bg-red-50 border border-red-200 rounded-lg p-6 hidden">
         <div class="flex">
@@ -117,11 +109,6 @@ function updateProgress(data) {
         return;
     }
     
-    // Show headlines if available
-    if (data.headlines_status && data.headlines_status.length > 0) {
-        showHeadlines(data.headlines_status);
-    }
-    
     // Redirect if completed
     if (data.status === 'completed') {
         setTimeout(() => {
@@ -130,47 +117,6 @@ function updateProgress(data) {
     }
 }
 
-function showHeadlines(headlines) {
-    const container = document.getElementById('headlines-container');
-    const list = document.getElementById('headlines-list');
-    
-    list.innerHTML = '';
-    headlines.forEach(headline => {
-        const div = document.createElement('div');
-        div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
-        
-        let statusIcon = '';
-        let statusClass = '';
-        
-        if (headline.status === 'completed') {
-            statusIcon = '✓';
-            statusClass = 'text-green-600';
-        } else if (headline.status === 'running') {
-            statusIcon = '⏳';
-            statusClass = 'text-yellow-600';
-        } else if (headline.status === 'failed') {
-            statusIcon = '✗';
-            statusClass = 'text-red-600';
-        } else {
-            statusIcon = '○';
-            statusClass = 'text-gray-400';
-        }
-        
-        div.innerHTML = `
-            <div class="flex-1">
-                <p class="text-sm font-medium text-gray-900">${headline.text}</p>
-            </div>
-            <div class="flex items-center">
-                ${headline.score ? `<span class="text-sm text-gray-600 mr-2">${Math.round((headline.score/5)*100)}%</span>` : ''}
-                <span class="${statusClass} font-medium">${statusIcon}</span>
-            </div>
-        `;
-        
-        list.appendChild(div);
-    });
-    
-    container.classList.remove('hidden');
-}
 
 function showError(message) {
     clearInterval(pollInterval);

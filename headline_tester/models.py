@@ -36,8 +36,8 @@ class HeadlineTest(models.Model):
 
     @property
     def total_headlines(self):
-        """Total number of headlines (original + alternatives)"""
-        return 1 + self.alternatives.count()
+        """Total number of headlines being tested (alternatives only)"""
+        return self.alternatives.count()
 
     @property 
     def population_display_name(self):
