@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'qa_app',
     'press_release_scorer',
+    'headline_tester',
 ]
 
 MIDDLEWARE = [
@@ -133,6 +134,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Semilattice API Configuration
 SEMILATTICE_API_KEY = config('SEMILATTICE_API_KEY')
 SEMILATTICE_BASE_URL = config('SEMILATTICE_BASE', default='https://api.semilattice.ai')
+
+# Anthropic API Configuration
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY')
 
 # Authentication Configuration
 LOGIN_URL = 'login'

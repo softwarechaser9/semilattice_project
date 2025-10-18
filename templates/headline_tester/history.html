@@ -1,0 +1,158 @@
+{% extends 'qa_app/base.html' %}
+
+{% block title %}Headline Test History - Semilattice Q&A{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Headline Test History</h1>
+            <p class="text-gray-600 mt-2">Your previous headline tests and results</p>
+        </div>
+        <a href="{% url 'headline_tester:input' %}" 
+           class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">
+            Test New Headline
+        </a>
+    </div>
+
+    {% if tests %}
+        <!-- Tests Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for test in tests %}
+                <div class="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
+                    <!-- Test Header -->
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-lg font-medium text-gray-900 truncate">
+                                    {{ test.original_headline }}
+                                </h3>
+                            </div>
+                            <div class="flex items-center ml-2">
+                                {% if test.status == 'completed' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        ✓ Completed
+                                    </span>
+                                {% elif test.status == 'failed' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        ✗ Failed
+                                    </span>
+                                {% elif test.status == 'testing' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        ⏳ Testing
+                                    </span>
+                                {% elif test.status == 'generating' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        🤖 Generating
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        ○ Pending
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="text-sm text-gray-500">
+                            <div>{{ test.created_at|date:"M j, Y" }}</div>
+                            <div class="text-xs text-gray-400">{{ test.created_at|date:"g:i A" }}</div>
+                        </div>
+                        
+                        {% if test.population_display_name %}
+                            <div class="text-xs text-gray-500 mt-2">
+                                Population: {{ test.population_display_name }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Test Content -->
+                    <div class="p-6">
+                        {% if test.status == 'completed' %}
+                            {% if test.winning_headline %}
+                                <div class="mb-4">
+                                    <div class="text-sm text-gray-600 mb-1">Best Performing Headline:</div>
+                                    <div class="text-sm font-medium text-gray-900 italic">
+                                        "{{ test.winning_headline|truncatechars:80 }}"
+                                    </div>
+                                    <div class="text-xs text-green-600 mt-1">
+                                        Rating: {{ test.winning_score }}
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Results Summary -->
+                            <div class="text-sm text-gray-600 mb-4">
+                                {% with test.scores.all as scores %}
+                                    {% if scores %}
+                                        Tested {{ scores.count }} headline{{ scores.count|pluralize }}
+                                        • Best rating: {{ test.winning_score }}
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                        {% elif test.status == 'failed' %}
+                            <div class="text-sm text-red-600 mb-4">
+                                Test failed. Please try again.
+                                {% if test.error_message %}
+                                    <div class="text-xs text-gray-500 mt-1">{{ test.error_message|truncatechars:100 }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="text-sm text-gray-600 mb-4">
+                                Test in progress...
+                            </div>
+                        {% endif %}
+                        
+                        <!-- Actions -->
+                        <div class="flex items-center justify-between">
+                            {% if test.status == 'completed' %}
+                                <a href="{% url 'headline_tester:results' test.id %}" 
+                                   class="text-blue-600 hover:text-blue-700 text-sm underline">
+                                    View Results
+                                </a>
+                            {% elif test.status == 'failed' %}
+                                <span class="text-sm text-gray-400">No results available</span>
+                            {% else %}
+                                <a href="{% url 'headline_tester:progress' test.id %}" 
+                                   class="text-blue-600 hover:text-blue-700 text-sm underline">
+                                    View Progress
+                                </a>
+                            {% endif %}
+                            
+                            <form method="post" action="{% url 'headline_tester:delete' test.id %}" 
+                                  onsubmit="return confirm('Are you sure you want to delete this test?')"
+                                  class="inline">
+                                {% csrf_token %}
+                                <button type="submit" 
+                                        class="text-red-600 hover:text-red-700 text-sm">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination or Load More could go here -->
+        
+    {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-12">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                </path>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No headline tests yet</h3>
+            <p class="mt-1 text-sm text-gray-500">Get started by testing your first headline with AI alternatives.</p>
+            <div class="mt-6">
+                <a href="{% url 'headline_tester:input' %}" 
+                   class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    Test Your First Headline
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

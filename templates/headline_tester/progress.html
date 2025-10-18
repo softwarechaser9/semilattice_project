@@ -1,0 +1,205 @@
+{% extends 'qa_app/base.html' %}
+
+{% block title %}Testing Headlines - Semilattice Q&A{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-8">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">Testing Your Headlines</h1>
+        <p class="text-gray-600">{{ test.original_headline }}</p>
+    </div>
+
+    <!-- Progress Steps -->
+    <div class="bg-white rounded-lg shadow p-8 mb-8">
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center">
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-sm font-medium">
+                    1
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900">Generate Headlines</p>
+                    <p class="text-xs text-gray-500">AI creating alternatives</p>
+                </div>
+            </div>
+            <div class="flex-1 mx-4">
+                <div class="h-1 bg-gray-200 rounded">
+                    <div id="claude-progress" class="h-1 bg-blue-600 rounded transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="flex items-center">
+                <div class="flex items-center justify-center w-8 h-8 bg-gray-300 text-gray-600 rounded-full text-sm font-medium">
+                    2
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-600">Test Headlines</p>
+                    <p class="text-xs text-gray-500">Audience evaluation</p>
+                </div>
+            </div>
+            <div class="flex-1 mx-4">
+                <div class="h-1 bg-gray-200 rounded">
+                    <div id="semilattice-progress" class="h-1 bg-blue-600 rounded transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="flex items-center">
+                <div class="flex items-center justify-center w-8 h-8 bg-gray-300 text-gray-600 rounded-full text-sm font-medium">
+                    3
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-600">View Results</p>
+                    <p class="text-xs text-gray-500">Compare performance</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Message -->
+        <div id="status-message" class="text-center">
+            <div class="inline-flex items-center">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="status-text">Starting headline test...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Headlines Status -->
+    <div id="headlines-container" class="bg-white rounded-lg shadow p-8 hidden">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Headlines Being Tested</h3>
+        <div id="headlines-list" class="space-y-3">
+            <!-- Headlines will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error-container" class="bg-red-50 border border-red-200 rounded-lg p-6 hidden">
+        <div class="flex">
+            <svg class="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+            </svg>
+            <div>
+                <h3 class="text-sm font-medium text-red-800">Test Failed</h3>
+                <p id="error-message" class="text-sm text-red-700 mt-1"></p>
+                <div class="mt-4">
+                    <a href="{% url 'headline_tester:input' %}" 
+                       class="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700">
+                        Try Again
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ test.id|json_script:"test-id" }}
+<script>
+const testId = JSON.parse(document.getElementById('test-id').textContent);
+const progressUrl = "{% url 'headline_tester:progress_ajax' test.id %}";
+const resultsUrl = "{% url 'headline_tester:results' test.id %}";
+let pollInterval;
+
+function updateProgress(data) {
+    // Update progress bars
+    document.getElementById('claude-progress').style.width = data.claude_progress + '%';
+    document.getElementById('semilattice-progress').style.width = data.semilattice_progress + '%';
+    
+    // Update status message
+    let statusText = document.getElementById('status-text');
+    if (data.status === 'generating') {
+        statusText.textContent = 'AI generating alternative headlines...';
+    } else if (data.status === 'testing') {
+        statusText.textContent = `Testing headlines with audience (${data.completed_headlines}/${data.total_headlines} complete)...`;
+    } else if (data.status === 'completed') {
+        statusText.textContent = 'Test completed! Redirecting to results...';
+    } else if (data.status === 'failed') {
+        showError(data.error_message);
+        return;
+    }
+    
+    // Show headlines if available
+    if (data.headlines_status && data.headlines_status.length > 0) {
+        showHeadlines(data.headlines_status);
+    }
+    
+    // Redirect if completed
+    if (data.status === 'completed') {
+        setTimeout(() => {
+            window.location.href = resultsUrl;
+        }, 2000);
+    }
+}
+
+function showHeadlines(headlines) {
+    const container = document.getElementById('headlines-container');
+    const list = document.getElementById('headlines-list');
+    
+    list.innerHTML = '';
+    headlines.forEach(headline => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+        
+        let statusIcon = '';
+        let statusClass = '';
+        
+        if (headline.status === 'completed') {
+            statusIcon = '✓';
+            statusClass = 'text-green-600';
+        } else if (headline.status === 'running') {
+            statusIcon = '⏳';
+            statusClass = 'text-yellow-600';
+        } else if (headline.status === 'failed') {
+            statusIcon = '✗';
+            statusClass = 'text-red-600';
+        } else {
+            statusIcon = '○';
+            statusClass = 'text-gray-400';
+        }
+        
+        div.innerHTML = `
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-900">${headline.text}</p>
+            </div>
+            <div class="flex items-center">
+                ${headline.score ? `<span class="text-sm text-gray-600 mr-2">${Math.round((headline.score/5)*100)}%</span>` : ''}
+                <span class="${statusClass} font-medium">${statusIcon}</span>
+            </div>
+        `;
+        
+        list.appendChild(div);
+    });
+    
+    container.classList.remove('hidden');
+}
+
+function showError(message) {
+    clearInterval(pollInterval);
+    document.getElementById('error-message').textContent = message;
+    document.getElementById('error-container').classList.remove('hidden');
+    document.getElementById('status-message').style.display = 'none';
+}
+
+function pollProgress() {
+    fetch(progressUrl)
+        .then(response => response.json())
+        .then(data => updateProgress(data))
+        .catch(error => {
+            console.error('Error polling progress:', error);
+            showError('Connection error. Please refresh the page.');
+        });
+}
+
+// Start polling when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    pollProgress(); // Initial call
+    pollInterval = setInterval(pollProgress, 2000); // Poll every 2 seconds
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+    }
+});
+</script>
+{% endblock %}

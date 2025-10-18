@@ -22,6 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('qa_app.urls')),
     path('press-release-scorer/', include('press_release_scorer.urls')),
+    path('headline-tester/', include('headline_tester.urls')),
     
     # Password Reset URLs
     path('password-reset/', 
