@@ -258,8 +258,14 @@ class HeadlineTestingService:
             
             logger.info(f"Started audience testing {test.id} with population {population_id}")
             
-            # Start Semilattice testing
-            self._start_semilattice_testing(test)
+            # Start Semilattice testing in background thread
+            import threading
+            testing_thread = threading.Thread(
+                target=self._start_semilattice_testing_background,
+                args=(test,)
+            )
+            testing_thread.daemon = True
+            testing_thread.start()
             
             return test
             
@@ -320,17 +326,37 @@ class HeadlineTestingService:
             raise
     
     def _test_headlines_with_semilattice(self, test):
-        """Test each headline directly with Semilattice - simple preference testing"""
-        semilattice_client = SemilatticeAPIClient()
+        """Test headlines in parallel to avoid timeout"""
+        import threading
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         
-        # Test each headline score record
-        for score_record in test.scores.filter(status='pending'):
-            try:
-                self._test_single_headline_simple(score_record, semilattice_client, test.population_id)
-            except Exception as e:
-                logger.error(f"Error testing headline {score_record.id}: {e}")
-                score_record.status = 'failed'
-                score_record.save()
+        score_records = list(test.scores.filter(status='pending'))
+        logger.info(f"Starting parallel testing of {len(score_records)} headlines")
+        
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit all headlines for testing
+            future_to_score = {}
+            for score_record in score_records:
+                semilattice_client = SemilatticeAPIClient()  # Create client per thread
+                future = executor.submit(
+                    self._test_single_headline_simple, 
+                    score_record, 
+                    semilattice_client, 
+                    test.population_id
+                )
+                future_to_score[future] = score_record
+            
+            # Process completed results
+            for future in as_completed(future_to_score):
+                score_record = future_to_score[future]
+                try:
+                    future.result()  # This will raise exception if the thread failed
+                    logger.info(f"Completed testing headline {score_record.id}")
+                except Exception as e:
+                    logger.error(f"Error testing headline {score_record.id}: {e}")
+                    score_record.status = 'failed'
+                    score_record.save()
     
     def _test_single_headline_simple(self, score_record, semilattice_client, population_id):
         """Test a single headline directly with Semilattice - preference only"""
@@ -354,10 +380,10 @@ class HeadlineTestingService:
             if result['success'] and result.get('answer_id'):
                 logger.info(f"Question submitted. Answer ID: {result['answer_id']}")
                 
-                # Poll for completion
+                # Poll for completion with shorter timeout
                 poll_result = semilattice_client.poll_until_complete(
                     answer_id=result['answer_id'],
-                    max_wait_seconds=60
+                    max_wait_seconds=45
                 )
                 
                 if poll_result['success'] and poll_result.get('status') == 'Predicted':
@@ -526,4 +552,14 @@ class HeadlineTestingService:
             
             test.save()
             logger.info(f"Test {test.id} marked as completed")
+    
+    def _start_semilattice_testing_background(self, test):
+        """Background thread wrapper for Semilattice testing"""
+        try:
+            self._start_semilattice_testing(test)
+        except Exception as e:
+            logger.error(f"Background testing failed for test {test.id}: {e}")
+            test.status = 'failed'
+            test.error_message = f"Testing failed: {str(e)}"
+            test.save()
 
