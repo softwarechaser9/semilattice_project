@@ -8,9 +8,7 @@ urlpatterns = [
     path('logout/', views.user_logout, name='logout'),
     
     # Main application URLs
-    path('', views.product_demo, name='home'),  # Make product-demo the main page
-    path('ask-questions/', views.home, name='ask_questions'),  # Move original home to ask-questions
-    path('product-demo/', views.product_demo, name='product_demo'),  # Keep for backward compatibility
+    path('', views.home, name='home'),  # Main page - Ask Questions
     path('ask/', views.ask_question, name='ask_question'),
     path('question/<int:question_id>/', views.question_detail, name='question_detail'),
     path('question/<int:question_id>/delete/', views.delete_question, name='delete_question'),

@@ -30,16 +30,6 @@ def home(request):
 
 
 @login_required
-def product_demo(request):
-    """Product demo page as requested"""
-    populations = Population.objects.filter(created_by=request.user).order_by('name')
-    context = {
-        'populations': populations,
-    }
-    return render(request, 'qa_app/product_demo.html', context)
-
-
-@login_required
 @require_http_methods(["POST"])
 def ask_question(request):
     """Handle question submission and start Semilattice simulation"""
@@ -62,14 +52,18 @@ def ask_question(request):
                 messages.error(request, 'Answer options are required for choice questions.')
                 return redirect('home')
         
-        # Get or create population
+        # Get or create population (filter by current user to avoid duplicates)
         try:
-            population = Population.objects.get(population_id=population_id)
+            population = Population.objects.get(
+                population_id=population_id,
+                created_by=request.user
+            )
         except Population.DoesNotExist:
             population = Population.objects.create(
                 population_id=population_id,
                 name=f"Population {population_id}",
-                description="Auto-created population"
+                description="Auto-created population",
+                created_by=request.user
             )
         
         # Create question
