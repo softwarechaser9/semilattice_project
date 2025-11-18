@@ -256,8 +256,8 @@ def delete_question(request, question_id):
         
         messages.success(request, f'Question "{question_text}" from population "{population_name}" deleted successfully.')
         
-        # Redirect to ask questions page
-        return redirect('ask_questions')
+        # Redirect to home page (ask questions)
+        return redirect('home')
         
     except Exception as e:
         logger.error(f"Error deleting question {question_id}: {e}")
