@@ -15,6 +15,7 @@ from decouple import config
 import os
 import dj_database_url
 import ssl
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -200,9 +201,15 @@ CELERY_TIMEZONE = 'UTC'
 # Celery task result expiration (1 hour)
 CELERY_RESULT_EXPIRES = 3600
 
-# Celery beat schedule (for scheduled tasks)
+
+
 CELERY_BEAT_SCHEDULE = {
-    # Example: Clean up old email logs every day at midnight
+    # Check for scheduled email distributions every minute
+    'check-scheduled-distributions': {
+        'task': 'press_release_mailer.tasks.check_scheduled_distributions',
+        'schedule': 60.0,  # Run every 60 seconds
+    },
+    # Example: Clean up old email logs every day at midnight UTC
     # 'cleanup-old-logs': {
     #     'task': 'press_release_mailer.tasks.cleanup_old_logs',
     #     'schedule': crontab(hour=0, minute=0),

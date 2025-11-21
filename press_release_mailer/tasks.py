@@ -280,3 +280,46 @@ def test_celery():
     """
     logger.info("Celery test task executed successfully!")
     return {'status': 'success', 'message': 'Celery is working!'}
+
+
+@shared_task
+def check_scheduled_distributions():
+    """
+    Periodic task to check for distributions scheduled to be sent now
+    Runs every minute via Celery Beat
+    """
+    from django.utils import timezone
+    
+    logger.info("Checking for scheduled distributions...")
+    
+    # Find distributions that are:
+    # 1. Status is 'scheduled'
+    # 2. scheduled_at time has passed (scheduled_at <= now)
+    now = timezone.now()
+    scheduled_distributions = Distribution.objects.filter(
+        status='scheduled',
+        scheduled_at__lte=now
+    )
+    
+    count = scheduled_distributions.count()
+    logger.info(f"Found {count} distributions ready to send")
+    
+    sent_count = 0
+    for distribution in scheduled_distributions:
+        logger.info(f"Triggering scheduled distribution: {distribution.name} (ID: {distribution.id})")
+        
+        # Call the async send task
+        result = send_distribution_async.delay(distribution.id)
+        
+        # Update distribution to track the task
+        distribution.celery_task_id = result.id
+        distribution.save()
+        
+        sent_count += 1
+    
+    return {
+        'status': 'success',
+        'checked_at': now.isoformat(),
+        'found': count,
+        'triggered': sent_count
+    }
