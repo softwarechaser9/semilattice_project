@@ -289,6 +289,7 @@ def check_scheduled_distributions():
     Runs every minute via Celery Beat
     """
     from django.utils import timezone
+    from .campaign_utils import prepare_distribution_recipients
     
     logger.info("Checking for scheduled distributions...")
     
@@ -308,12 +309,28 @@ def check_scheduled_distributions():
     for distribution in scheduled_distributions:
         logger.info(f"Triggering scheduled distribution: {distribution.name} (ID: {distribution.id})")
         
+        # IMPORTANT: Prepare recipients if not already done
+        if distribution.total_recipients == 0:
+            success, message, recipient_count = prepare_distribution_recipients(distribution)
+            if not success:
+                logger.error(f"Failed to prepare recipients for distribution {distribution.id}: {message}")
+                distribution.status = 'failed'
+                distribution.save()
+                continue
+            logger.info(f"Prepared {recipient_count} recipients for distribution {distribution.id}")
+        
+        # Update status to 'sending' before triggering task
+        distribution.status = 'sending'
+        distribution.save()
+        logger.info(f"Updated distribution {distribution.id} status to 'sending'")
+        
         # Call the async send task
         result = send_distribution_async.delay(distribution.id)
         
         # Update distribution to track the task
         distribution.celery_task_id = result.id
         distribution.save()
+        logger.info(f"Queued distribution {distribution.id} with task ID: {result.id}")
         
         sent_count += 1
     
