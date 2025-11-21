@@ -111,6 +111,15 @@ class CSVImportForm(forms.Form):
 class ContactListForm(forms.ModelForm):
     """Form for creating/editing contact lists"""
     
+    def __init__(self, *args, **kwargs):
+        # Extract user from kwargs
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Filter contacts to only show the current user's contacts
+        if self.user:
+            self.fields['contacts'].queryset = Contact.objects.filter(created_by=self.user, is_active=True)
+    
     class Meta:
         model = ContactList
         fields = ['name', 'description', 'contacts']
@@ -160,6 +169,17 @@ class EmailTemplateForm(forms.ModelForm):
 
 class DistributionForm(forms.ModelForm):
     """Form for creating email distributions/campaigns"""
+    
+    def __init__(self, *args, **kwargs):
+        # Extract user from kwargs
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Filter dropdowns to only show the current user's data
+        if self.user:
+            self.fields['email_template'].queryset = EmailTemplate.objects.filter(created_by=self.user, is_active=True)
+            self.fields['individual_contacts'].queryset = Contact.objects.filter(created_by=self.user, is_active=True)
+            self.fields['contact_lists'].queryset = ContactList.objects.filter(created_by=self.user)
     
     # Add custom field for template selection
     use_template = forms.BooleanField(

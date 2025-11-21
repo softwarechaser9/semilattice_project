@@ -74,13 +74,13 @@ Press Release Mailer
 def dashboard(request):
     """Main dashboard for press release mailer"""
     context = {
-        'total_contacts': Contact.objects.filter(is_active=True).count(),
-        'total_lists': ContactList.objects.count(),
-        'total_templates': EmailTemplate.objects.filter(is_active=True).count(),
-        'total_distributions': Distribution.objects.count(),
-        'recent_distributions': Distribution.objects.all().order_by('-created_at')[:5],
-        'recent_contacts': Contact.objects.filter(is_active=True).order_by('-created_at')[:5],
-        'contact_lists': ContactList.objects.all().order_by('-created_at')[:5],
+        'total_contacts': Contact.objects.filter(is_active=True, created_by=request.user).count(),
+        'total_lists': ContactList.objects.filter(created_by=request.user).count(),
+        'total_templates': EmailTemplate.objects.filter(is_active=True, created_by=request.user).count(),
+        'total_distributions': Distribution.objects.filter(created_by=request.user).count(),
+        'recent_distributions': Distribution.objects.filter(created_by=request.user).order_by('-created_at')[:5],
+        'recent_contacts': Contact.objects.filter(is_active=True, created_by=request.user).order_by('-created_at')[:5],
+        'contact_lists': ContactList.objects.filter(created_by=request.user).order_by('-created_at')[:5],
     }
     return render(request, 'press_release_mailer/dashboard.html', context)
 
@@ -88,7 +88,7 @@ def dashboard(request):
 @login_required
 def contact_list(request):
     """List all contacts with search and filter"""
-    contacts = Contact.objects.all()
+    contacts = Contact.objects.filter(created_by=request.user)
     
     # Search
     search_query = request.GET.get('search', '')
@@ -115,7 +115,7 @@ def contact_list(request):
     context = {
         'contacts': contacts,
         'search_query': search_query,
-        'categories': Contact.objects.values_list('category', flat=True).distinct(),
+        'categories': Contact.objects.filter(created_by=request.user).values_list('category', flat=True).distinct(),
     }
     return render(request, 'press_release_mailer/contact_list.html', context)
 
@@ -144,7 +144,7 @@ def contact_add(request):
 @login_required
 def contact_detail(request, pk):
     """View contact details"""
-    contact = get_object_or_404(Contact, pk=pk)
+    contact = get_object_or_404(Contact, pk=pk, created_by=request.user)
     context = {
         'contact': contact,
         'email_history': contact.email_logs.all()[:10],
@@ -155,7 +155,7 @@ def contact_detail(request, pk):
 @login_required
 def contact_edit(request, pk):
     """Edit contact"""
-    contact = get_object_or_404(Contact, pk=pk)
+    contact = get_object_or_404(Contact, pk=pk, created_by=request.user)
     
     if request.method == 'POST':
         form = ContactForm(request.POST, instance=contact)
@@ -177,7 +177,7 @@ def contact_edit(request, pk):
 @login_required
 def contact_delete(request, pk):
     """Delete contact"""
-    contact = get_object_or_404(Contact, pk=pk)
+    contact = get_object_or_404(Contact, pk=pk, created_by=request.user)
     if request.method == 'POST':
         contact.delete()
         messages.success(request, f'Contact {contact.full_name} deleted successfully!')
@@ -228,7 +228,7 @@ def contact_import(request):
 @login_required
 def contact_export(request):
     """Export contacts to CSV"""
-    contacts = Contact.objects.all()
+    contacts = Contact.objects.filter(created_by=request.user)
     
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="contacts.csv"'
@@ -264,7 +264,7 @@ def download_sample_csv(request):
 @login_required
 def contactlist_list(request):
     """List all contact lists"""
-    lists = ContactList.objects.annotate(contact_count=Count('contacts'))
+    lists = ContactList.objects.filter(created_by=request.user).annotate(contact_count=Count('contacts'))
     context = {'lists': lists}
     return render(request, 'press_release_mailer/contactlist_list.html', context)
 
@@ -273,7 +273,7 @@ def contactlist_list(request):
 def contactlist_add(request):
     """Add new contact list"""
     if request.method == 'POST':
-        form = ContactListForm(request.POST)
+        form = ContactListForm(request.POST, user=request.user)
         if form.is_valid():
             contact_list = form.save(commit=False)
             contact_list.created_by = request.user
@@ -282,7 +282,7 @@ def contactlist_add(request):
             messages.success(request, f'✅ Contact list "{contact_list.name}" created successfully!')
             return redirect('press_release_mailer:contactlist_detail', pk=contact_list.pk)
     else:
-        form = ContactListForm()
+        form = ContactListForm(user=request.user)
     
     return render(request, 'press_release_mailer/contactlist_form.html', {
         'form': form,
@@ -294,7 +294,7 @@ def contactlist_add(request):
 @login_required
 def contactlist_detail(request, pk):
     """View contact list details"""
-    contact_list = get_object_or_404(ContactList, pk=pk)
+    contact_list = get_object_or_404(ContactList, pk=pk, created_by=request.user)
     context = {
         'contact_list': contact_list,
         'contacts': contact_list.contacts.all(),
@@ -305,16 +305,16 @@ def contactlist_detail(request, pk):
 @login_required
 def contactlist_edit(request, pk):
     """Edit contact list"""
-    contact_list = get_object_or_404(ContactList, pk=pk)
+    contact_list = get_object_or_404(ContactList, pk=pk, created_by=request.user)
     
     if request.method == 'POST':
-        form = ContactListForm(request.POST, instance=contact_list)
+        form = ContactListForm(request.POST, instance=contact_list, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, f'✅ Contact list "{contact_list.name}" updated successfully!')
             return redirect('press_release_mailer:contactlist_detail', pk=pk)
     else:
-        form = ContactListForm(instance=contact_list)
+        form = ContactListForm(instance=contact_list, user=request.user)
     
     return render(request, 'press_release_mailer/contactlist_form.html', {
         'form': form,
@@ -327,7 +327,7 @@ def contactlist_edit(request, pk):
 @login_required
 def contactlist_delete(request, pk):
     """Delete contact list"""
-    contact_list = get_object_or_404(ContactList, pk=pk)
+    contact_list = get_object_or_404(ContactList, pk=pk, created_by=request.user)
     if request.method == 'POST':
         name = contact_list.name
         contact_list.delete()
@@ -359,7 +359,7 @@ def template_add(request):
 @login_required
 def template_list(request):
     """List all email templates"""
-    templates = EmailTemplate.objects.all()
+    templates = EmailTemplate.objects.filter(created_by=request.user)
     context = {'templates': templates}
     return render(request, 'press_release_mailer/template_list.html', context)
 
@@ -367,7 +367,7 @@ def template_list(request):
 @login_required
 def template_edit(request, pk):
     """Edit template"""
-    template = get_object_or_404(EmailTemplate, pk=pk)
+    template = get_object_or_404(EmailTemplate, pk=pk, created_by=request.user)
     
     if request.method == 'POST':
         form = EmailTemplateForm(request.POST, instance=template)
@@ -389,7 +389,7 @@ def template_edit(request, pk):
 @login_required
 def template_detail(request, pk):
     """View template details"""
-    template = get_object_or_404(EmailTemplate, pk=pk)
+    template = get_object_or_404(EmailTemplate, pk=pk, created_by=request.user)
     context = {'template': template}
     return render(request, 'press_release_mailer/template_detail.html', context)
 
@@ -397,7 +397,7 @@ def template_detail(request, pk):
 @login_required
 def template_delete(request, pk):
     """Delete template"""
-    template = get_object_or_404(EmailTemplate, pk=pk)
+    template = get_object_or_404(EmailTemplate, pk=pk, created_by=request.user)
     if request.method == 'POST':
         template.delete()
         messages.success(request, f'Template "{template.name}" deleted successfully!')
@@ -408,7 +408,7 @@ def template_delete(request, pk):
 @login_required
 def distribution_list(request):
     """List all distributions"""
-    distributions = Distribution.objects.all()
+    distributions = Distribution.objects.filter(created_by=request.user)
     context = {'distributions': distributions}
     return render(request, 'press_release_mailer/distribution_list.html', context)
 
@@ -417,7 +417,7 @@ def distribution_list(request):
 def distribution_create(request):
     """Create new distribution/campaign"""
     if request.method == 'POST':
-        form = DistributionForm(request.POST, request.FILES)
+        form = DistributionForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             # Create distribution
             distribution = form.save(commit=False)
@@ -447,7 +447,7 @@ def distribution_create(request):
                 return redirect('press_release_mailer:distribution_edit', pk=distribution.pk)
     else:
         # Pre-fill with first template if use_template is checked
-        form = DistributionForm()
+        form = DistributionForm(user=request.user)
     
     return render(request, 'press_release_mailer/distribution_form.html', {
         'form': form,
@@ -459,7 +459,7 @@ def distribution_create(request):
 @login_required
 def distribution_detail(request, pk):
     """View distribution details"""
-    distribution = get_object_or_404(Distribution, pk=pk)
+    distribution = get_object_or_404(Distribution, pk=pk, created_by=request.user)
     context = {
         'distribution': distribution,
         'recipients': distribution.recipient_records.all()[:50],  # Show first 50
@@ -470,13 +470,13 @@ def distribution_detail(request, pk):
 @login_required
 def distribution_edit(request, pk):
     """Edit distribution"""
-    distribution = get_object_or_404(Distribution, pk=pk)
+    distribution = get_object_or_404(Distribution, pk=pk, created_by=request.user)
     if distribution.status != 'draft':
         messages.error(request, '❌ Cannot edit a campaign that is not in draft status!')
         return redirect('press_release_mailer:distribution_detail', pk=pk)
     
     if request.method == 'POST':
-        form = DistributionForm(request.POST, request.FILES, instance=distribution)
+        form = DistributionForm(request.POST, request.FILES, instance=distribution, user=request.user)
         if form.is_valid():
             # Save with commit=False to handle M2M relationships manually
             distribution = form.save(commit=False)
@@ -500,7 +500,7 @@ def distribution_edit(request, pk):
             
             return redirect('press_release_mailer:distribution_preview', pk=pk)
     else:
-        form = DistributionForm(instance=distribution)
+        form = DistributionForm(instance=distribution, user=request.user)
     
     return render(request, 'press_release_mailer/distribution_form.html', {
         'form': form,
@@ -513,7 +513,7 @@ def distribution_edit(request, pk):
 @login_required
 def distribution_preview(request, pk):
     """Preview campaign with mail merge samples"""
-    distribution = get_object_or_404(Distribution, pk=pk)
+    distribution = get_object_or_404(Distribution, pk=pk, created_by=request.user)
     
     # Get preview samples
     previews = get_preview_recipients(distribution, limit=3)
@@ -531,7 +531,7 @@ def distribution_preview(request, pk):
 @login_required
 def distribution_send(request, pk):
     """Send distribution (async with Celery)"""
-    distribution = get_object_or_404(Distribution, pk=pk)
+    distribution = get_object_or_404(Distribution, pk=pk, created_by=request.user)
     
     if request.method == 'POST':
         # Validate email settings first
@@ -577,7 +577,7 @@ def distribution_send(request, pk):
 @login_required
 def distribution_cancel(request, pk):
     """Cancel distribution"""
-    distribution = get_object_or_404(Distribution, pk=pk)
+    distribution = get_object_or_404(Distribution, pk=pk, created_by=request.user)
     if request.method == 'POST':
         distribution.status = 'cancelled'
         distribution.save()
@@ -589,7 +589,7 @@ def distribution_cancel(request, pk):
 @login_required
 def distribution_delete(request, pk):
     """Delete distribution"""
-    distribution = get_object_or_404(Distribution, pk=pk)
+    distribution = get_object_or_404(Distribution, pk=pk, created_by=request.user)
     if request.method == 'POST':
         distribution.delete()
         messages.success(request, f'Distribution "{distribution.name}" deleted successfully!')
@@ -600,7 +600,7 @@ def distribution_delete(request, pk):
 @login_required
 def distribution_retry(request, pk):
     """Retry sending a failed or stuck distribution"""
-    distribution = get_object_or_404(Distribution, pk=pk)
+    distribution = get_object_or_404(Distribution, pk=pk, created_by=request.user)
     
     if distribution.status not in ['scheduled', 'failed', 'sending']:
         messages.error(request, '❌ This campaign cannot be retried.')
@@ -622,6 +622,8 @@ def api_contact_search(request):
     """AJAX endpoint for contact search"""
     query = request.GET.get('q', '')
     contacts = Contact.objects.filter(
+        created_by=request.user
+    ).filter(
         Q(first_name__icontains=query) |
         Q(last_name__icontains=query) |
         Q(email__icontains=query)
@@ -646,7 +648,7 @@ def api_contact_filter(request):
     category = request.GET.get('category', '')
     tags = request.GET.get('tags', '')
     
-    contacts = Contact.objects.filter(is_active=True)
+    contacts = Contact.objects.filter(is_active=True, created_by=request.user)
     
     if category:
         contacts = contacts.filter(category=category)
@@ -670,7 +672,7 @@ def api_contact_filter(request):
 def api_template_get(request, pk):
     """API endpoint to get template data for form population"""
     try:
-        template = EmailTemplate.objects.get(pk=pk, is_active=True)
+        template = EmailTemplate.objects.get(pk=pk, is_active=True, created_by=request.user)
         return JsonResponse({
             'success': True,
             'template': {
