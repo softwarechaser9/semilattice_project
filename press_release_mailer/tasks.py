@@ -1,0 +1,282 @@
+"""
+Celery tasks for asynchronous email sending
+Handles background processing of email campaigns
+"""
+import logging
+from celery import shared_task
+from django.core.mail import EmailMessage
+from django.conf import settings
+from django.utils import timezone
+from .models import Distribution, DistributionRecipient, EmailLog
+from .email_utils import apply_mail_merge, validate_email_settings
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def send_single_email_async(self, recipient_id):
+    """
+    Send a single email asynchronously
+    
+    Args:
+        recipient_id: ID of the DistributionRecipient to send to
+    
+    Returns:
+        dict: Status information
+    """
+    try:
+        recipient = DistributionRecipient.objects.get(id=recipient_id)
+        distribution = recipient.distribution
+        
+        # Update status to sending
+        recipient.status = 'sending'
+        recipient.save()
+        
+        # Get personalized content (already stored during preparation)
+        subject = recipient.personalized_subject or distribution.subject
+        body = recipient.personalized_body or distribution.body
+        
+        # Create email message
+        email = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient.contact.email],
+        )
+        
+        # Attach files if any
+        for attachment in distribution.attachments.all():
+            email.attach_file(attachment.file.path)
+        
+        # Send email
+        email.send()
+        
+        # Update status to sent
+        recipient.status = 'sent'
+        recipient.sent_at = timezone.now()
+        recipient.save()
+        
+        # Create email log
+        EmailLog.objects.create(
+            distribution_recipient=recipient,
+            contact=recipient.contact,
+            event='sent',
+            event_data={'message': f'Email sent successfully to {recipient.contact.email}'}
+        )
+        
+        logger.info(f"Email sent to {recipient.contact.email} for distribution {distribution.id}")
+        
+        # Update distribution status after this email
+        update_distribution_status.delay(distribution.id)
+        
+        return {
+            'status': 'success',
+            'recipient_id': recipient_id,
+            'email': recipient.contact.email
+        }
+        
+    except DistributionRecipient.DoesNotExist:
+        logger.error(f"DistributionRecipient {recipient_id} not found")
+        return {'status': 'error', 'message': 'Recipient not found'}
+        
+    except Exception as e:
+        logger.error(f"Error sending email to recipient {recipient_id}: {str(e)}")
+        
+        # Update recipient status
+        try:
+            recipient.status = 'failed'
+            recipient.error_message = str(e)
+            recipient.save()
+            
+            # Create error log
+            EmailLog.objects.create(
+                distribution_recipient=recipient,
+                contact=recipient.contact,
+                event='bounced',
+                event_data={'error': str(e), 'message': f'Failed to send: {str(e)}'}
+            )
+            
+            # Update distribution status
+            update_distribution_status.delay(recipient.distribution.id)
+        except:
+            pass
+        
+        # Retry the task
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e)
+        
+        return {
+            'status': 'error',
+            'recipient_id': recipient_id,
+            'error': str(e)
+        }
+
+
+@shared_task(bind=True)
+def send_distribution_async(self, distribution_id):
+    """
+    Send all emails for a distribution asynchronously
+    
+    Args:
+        distribution_id: ID of the Distribution to send
+    
+    Returns:
+        dict: Status information with counts
+    """
+    try:
+        logger.info(f"[TASK START] send_distribution_async called for distribution_id={distribution_id}")
+        distribution = Distribution.objects.get(id=distribution_id)
+        logger.info(f"[TASK] Found distribution: {distribution.name}, current status: {distribution.status}")
+        
+        # Validate email settings
+        is_valid, validation_message = validate_email_settings()
+        logger.info(f"[TASK] Email validation result: {is_valid}, message: {validation_message}")
+        if not is_valid:
+            distribution.status = 'failed'
+            distribution.save()
+            logger.error(f"Email validation failed: {validation_message}")
+            return {
+                'status': 'error',
+                'message': f'Email settings not configured: {validation_message}'
+            }
+        
+        # Update status to sending
+        distribution.status = 'sending'
+        distribution.save()
+        logger.info(f"[TASK] Updated distribution status to 'sending'")
+        
+        # Get all pending recipients
+        recipients = distribution.recipient_records.filter(status='pending')
+        total_recipients = recipients.count()
+        logger.info(f"[TASK] Found {total_recipients} pending recipients")
+        
+        if total_recipients == 0:
+            distribution.status = 'completed'
+            distribution.save()
+            return {
+                'status': 'success',
+                'message': 'No recipients to send to'
+            }
+        
+        logger.info(f"Starting to send distribution {distribution_id} to {total_recipients} recipients")
+        
+        # Queue individual email tasks
+        for recipient in recipients:
+            logger.info(f"[TASK] Queuing email for recipient {recipient.id}: {recipient.contact.email}")
+            # Chain the task - send each email individually
+            send_single_email_async.delay(recipient.id)
+        
+        # Note: Distribution status will be updated by a separate task that checks progress
+        # Or you can manually check it later
+        
+        return {
+            'status': 'queued',
+            'distribution_id': distribution_id,
+            'total_recipients': total_recipients,
+            'message': f'Queued {total_recipients} emails for sending'
+        }
+        
+    except Distribution.DoesNotExist:
+        logger.error(f"Distribution {distribution_id} not found")
+        return {'status': 'error', 'message': 'Distribution not found'}
+        
+    except Exception as e:
+        logger.error(f"Error sending distribution {distribution_id}: {str(e)}")
+        
+        try:
+            distribution.status = 'failed'
+            distribution.save()
+        except:
+            pass
+        
+        return {
+            'status': 'error',
+            'distribution_id': distribution_id,
+            'error': str(e)
+        }
+
+
+@shared_task
+def update_distribution_status(distribution_id):
+    """
+    Check and update the status of a distribution based on recipient statuses
+    
+    Args:
+        distribution_id: ID of the Distribution to check
+    """
+    try:
+        distribution = Distribution.objects.get(id=distribution_id)
+        
+        # Count statuses
+        total = distribution.recipient_records.count()
+        sent = distribution.recipient_records.filter(status='sent').count()
+        failed = distribution.recipient_records.filter(status='failed').count()
+        pending = distribution.recipient_records.filter(status='pending').count()
+        sending = distribution.recipient_records.filter(status='sending').count()
+        
+        # Update distribution counts
+        distribution.sent_count = sent
+        distribution.failed_count = failed
+        
+        # Determine overall status
+        if pending == 0 and sending == 0:
+            # All done
+            if failed == total:
+                distribution.status = 'failed'
+            else:
+                # Mark as completed (even if some failed)
+                distribution.status = 'completed'
+                if not distribution.completed_at:
+                    distribution.completed_at = timezone.now()
+        elif sending > 0 or (pending > 0 and sent > 0):
+            distribution.status = 'sending'
+        
+        distribution.save()
+        
+        logger.info(f"Updated distribution {distribution_id} status: {distribution.status} (sent: {sent}, failed: {failed}, pending: {pending})")
+        
+        return {
+            'distribution_id': distribution_id,
+            'status': distribution.status,
+            'sent': sent,
+            'failed': failed,
+            'pending': pending
+        }
+        
+    except Distribution.DoesNotExist:
+        logger.error(f"Distribution {distribution_id} not found")
+        return {'status': 'error', 'message': 'Distribution not found'}
+    except Exception as e:
+        logger.error(f"Error updating distribution status {distribution_id}: {str(e)}")
+        return {'status': 'error', 'error': str(e)}
+
+
+@shared_task
+def cleanup_old_logs(days=90):
+    """
+    Clean up old email logs (optional maintenance task)
+    
+    Args:
+        days: Delete logs older than this many days
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    cutoff_date = timezone.now() - timedelta(days=days)
+    deleted_count = EmailLog.objects.filter(timestamp__lt=cutoff_date).delete()[0]
+    
+    logger.info(f"Cleaned up {deleted_count} old email logs")
+    
+    return {
+        'deleted_count': deleted_count,
+        'cutoff_date': cutoff_date.isoformat()
+    }
+
+
+@shared_task
+def test_celery():
+    """
+    Simple test task to verify Celery is working
+    """
+    logger.info("Celery test task executed successfully!")
+    return {'status': 'success', 'message': 'Celery is working!'}

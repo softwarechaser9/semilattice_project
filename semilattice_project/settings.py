@@ -14,6 +14,7 @@ from pathlib import Path
 from decouple import config
 import os
 import dj_database_url
+import ssl
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'qa_app',
     'press_release_scorer',
     'headline_tester',
+    'press_release_mailer',  # New: Contact management & email distribution
 ]
 
 MIDDLEWARE = [
@@ -143,14 +145,71 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
 
-# Email Configuration (Gmail SMTP)
+# Email Configuration (SendGrid SMTP)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')  # Your Gmail address
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')  # Your App Password
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=config('EMAIL_HOST_USER', default='noreply@example.com'))
+EMAIL_HOST_USER = 'apikey'  # Fixed username for SendGrid
+EMAIL_HOST_PASSWORD = config('SENDGRID_API_KEY', default='')  # Your SendGrid API key
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='stuart@testlane.ai')
 
 # Password Reset Configuration
 PASSWORD_RESET_TIMEOUT = 3600  # 1 hour (in seconds)
+
+# Media Files (User Uploads - Attachments)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# ============================================
+# CELERY CONFIGURATION
+# ============================================
+
+# Celery broker URL - Redis
+# For local development: redis://localhost:6379/0
+# For Render/Production: Use Upstash Redis with TLS (rediss://)
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+
+# Configure SSL/TLS for Upstash Redis (production)
+# Upstash requires SSL connections (rediss:// protocol)
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+
+# SSL configuration for Upstash Redis
+if REDIS_URL.startswith('rediss://'):
+    # Enable SSL for Upstash Redis
+    CELERY_BROKER_USE_SSL = {
+        'ssl_cert_reqs': ssl.CERT_NONE,  # Don't verify SSL certificates (Upstash handles this)
+    }
+    CELERY_REDIS_BACKEND_USE_SSL = {
+        'ssl_cert_reqs': ssl.CERT_NONE,
+    }
+
+# Celery task serialization
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Celery task routing (disabled - using default queue for simplicity)
+# CELERY_TASK_ROUTES = {
+#     'press_release_mailer.tasks.send_distribution_async': {'queue': 'email'},
+#     'press_release_mailer.tasks.send_single_email_async': {'queue': 'email'},
+# }
+
+# Celery task result expiration (1 hour)
+CELERY_RESULT_EXPIRES = 3600
+
+# Celery beat schedule (for scheduled tasks)
+CELERY_BEAT_SCHEDULE = {
+    # Example: Clean up old email logs every day at midnight
+    # 'cleanup-old-logs': {
+    #     'task': 'press_release_mailer.tasks.cleanup_old_logs',
+    #     'schedule': crontab(hour=0, minute=0),
+    # },
+}
+
+# Task tracking
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes

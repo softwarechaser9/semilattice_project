@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ distribution.name }} - Press Release Mailer{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-3">
+                <a href="{% url 'press_release_mailer:distribution_list' %}" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                </a>
+                <h1 class="text-3xl font-bold text-gray-900">{{ distribution.name }}</h1>
+            </div>
+            
+            <!-- Status Badge -->
+            {% if distribution.status == 'draft' %}
+                <span class="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-800">
+                    📝 Draft
+                </span>
+            {% elif distribution.status == 'scheduled' %}
+                <span class="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800">
+                    ⏰ Scheduled
+                </span>
+            {% elif distribution.status == 'completed' %}
+                <span class="px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-800">
+                    ✅ Completed
+                </span>
+            {% elif distribution.status == 'failed' %}
+                <span class="px-3 py-1 text-sm font-medium rounded-full bg-red-100 text-red-800">
+                    ❌ Failed
+                </span>
+            {% elif distribution.status == 'cancelled' %}
+                <span class="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-600">
+                    🚫 Cancelled
+                </span>
+            {% endif %}
+        </div>
+        <p class="text-gray-600">Campaign details and delivery status</p>
+    </div>
+
+    <!-- Progress indicator removed per user request -->
+
+    <!-- Campaign Details -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+        <!-- Timeline Card -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">⏰ Timeline</h2>
+            <div class="space-y-3">
+                <div>
+                    <p class="text-sm text-gray-600">Created</p>
+                    <p class="font-semibold text-gray-900">{{ distribution.created_at|date:"M j, Y g:i A" }}</p>
+                </div>
+                {% if distribution.scheduled_at %}
+                <div>
+                    <p class="text-sm text-gray-600">Scheduled For</p>
+                    <p class="font-semibold text-blue-600">{{ distribution.scheduled_at|date:"M j, Y g:i A" }}</p>
+                </div>
+                {% endif %}
+                {% if distribution.sent_at %}
+                <div>
+                    <p class="text-sm text-gray-600">Started Sending</p>
+                    <p class="font-semibold text-gray-900">{{ distribution.sent_at|date:"M j, Y g:i A" }}</p>
+                </div>
+                {% endif %}
+                {% if distribution.completed_at %}
+                <div>
+                    <p class="text-sm text-gray-600">Completed</p>
+                    <p class="font-semibold text-green-600">{{ distribution.completed_at|date:"M j, Y g:i A" }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Contact Lists Card -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">📋 Contact Lists</h2>
+            <div class="space-y-2">
+                {% for list in distribution.contact_lists.all %}
+                    <a href="{% url 'press_release_mailer:contactlist_detail' list.pk %}" 
+                       class="block px-3 py-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+                        <p class="font-semibold text-gray-900">{{ list.name }}</p>
+                        <p class="text-sm text-gray-600">{{ list.contact_count }} contacts</p>
+                    </a>
+                {% empty %}
+                    <p class="text-gray-500 text-sm">No lists selected</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Content -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">📧 Email Content</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-600 mb-1">Subject Line</p>
+                    <p class="text-lg text-gray-900 bg-gray-50 p-3 rounded-lg">{{ distribution.subject }}</p>
+                </div>
+                
+                <div>
+                    <p class="text-sm font-medium text-gray-600 mb-1">Email Body</p>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <pre class="whitespace-pre-wrap font-sans text-gray-800">{{ distribution.body }}</pre>
+                    </div>
+                </div>
+
+                {% if distribution.attachments.all %}
+                <div>
+                    <p class="text-sm font-medium text-gray-600 mb-2">Attachments</p>
+                    <div class="space-y-2">
+                        {% for attachment in distribution.attachments.all %}
+                            <div class="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                    </svg>
+                                    <span class="text-gray-900">{{ attachment.filename }}</span>
+                                </div>
+                                <span class="text-sm text-gray-600">{{ attachment.file_size_mb }} MB</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recipients List -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">👥 Recipients</h2>
+            
+            {% if recipients %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Organization</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            {% for recipient in recipients %}
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3">
+                                        <a href="{% url 'press_release_mailer:contact_detail' recipient.contact.pk %}" 
+                                           class="font-medium text-blue-600 hover:underline">
+                                            {{ recipient.contact.full_name }}
+                                        </a>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">{{ recipient.contact.email }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">{{ recipient.contact.organization|default:"-" }}</td>
+                                    <td class="px-4 py-3">
+                                        {% if recipient.status == 'sent' %}
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">✓ Sent</span>
+                                        {% elif recipient.status == 'failed' %}
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" title="{{ recipient.error_message }}">✗ Failed</span>
+                                        {% elif recipient.status == 'sending' %}
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">⟳ Sending</span>
+                                        {% else %}
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">○ Pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if distribution.total_recipients > 50 %}
+                    <p class="mt-4 text-sm text-gray-600 text-center">
+                        Showing first 50 of {{ distribution.total_recipients }} recipients
+                    </p>
+                {% endif %}
+            {% else %}
+                <p class="text-center py-8 text-gray-500">No recipients found</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-6 flex justify-between">
+        <div class="space-x-3">
+            {% if distribution.status == 'draft' %}
+                <a href="{% url 'press_release_mailer:distribution_edit' distribution.pk %}" 
+                   class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-block">
+                    ✏️ Edit Campaign
+                </a>
+                <a href="{% url 'press_release_mailer:distribution_preview' distribution.pk %}" 
+                   class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-block">
+                    👁️ Preview & Send
+                </a>
+            {% endif %}
+        </div>
+        
+        <div class="space-x-3">
+            {% if distribution.status in 'draft,scheduled' %}
+                <a href="{% url 'press_release_mailer:distribution_delete' distribution.pk %}" 
+                   class="px-6 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 inline-block">
+                    🗑️ Delete
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Smart auto-refresh: Only reload when status changes from 'sending' -->
+{% if distribution.status == 'sending' %}
+<script>
+    // Check status every 3 seconds via AJAX (without full page reload)
+    let lastSentCount = {{ distribution.sent_count }};
+    let lastStatus = '{{ distribution.status }}';
+    let checkCount = 0;
+    const maxChecks = 40; // Stop after 2 minutes (40 * 3 seconds)
+    
+    function checkCampaignStatus() {
+        checkCount++;
+        
+        // Stop checking after max attempts or if we leave the page
+        if (checkCount > maxChecks) {
+            console.log('Max checks reached, stopping auto-refresh');
+            return;
+        }
+        
+        // Use fetch to check status without reloading
+        fetch(window.location.href, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.text())
+        .then(html => {
+            // Parse the response to check if status changed
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Check if campaign completed
+            const statusBadge = doc.querySelector('.rounded-full.bg-green-100');
+            if (statusBadge && statusBadge.textContent.includes('Completed')) {
+                // Campaign completed! Reload once to show final state
+                console.log('Campaign completed, reloading...');
+                location.reload();
+                return;
+            }
+            
+            // Continue checking if still sending
+            if (lastStatus === 'sending') {
+                setTimeout(checkCampaignStatus, 3000);
+            }
+        })
+        .catch(err => {
+            console.error('Status check failed:', err);
+            // Continue checking on error
+            setTimeout(checkCampaignStatus, 3000);
+        });
+    }
+    
+    // Start checking after 3 seconds
+    setTimeout(checkCampaignStatus, 3000);
+</script>
+{% endif %}
+{% endblock %}

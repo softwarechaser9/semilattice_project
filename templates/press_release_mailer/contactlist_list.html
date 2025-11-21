@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Contact Lists - Email Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">📋 Contact Lists</h1>
+        <a href="{% url 'press_release_mailer:contactlist_add' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm">
+            ➕ Create List
+        </a>
+    </div>
+
+    <!-- Contact Lists -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for list in lists %}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition">
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">{{ list.name }}</h3>
+                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                    {{ list.contact_count }} contacts
+                </span>
+            </div>
+            
+            {% if list.description %}
+            <p class="text-gray-600 text-sm mb-4">{{ list.description|truncatewords:20 }}</p>
+            {% else %}
+            <p class="text-gray-400 text-sm italic mb-4">No description</p>
+            {% endif %}
+            
+            <div class="flex justify-between items-center pt-4 border-t border-gray-200">
+                <span class="text-xs text-gray-500">Created {{ list.created_at|date:"M d, Y" }}</span>
+                <div class="flex space-x-2">
+                    <a href="{% url 'press_release_mailer:contactlist_detail' list.id %}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        View
+                    </a>
+                    <span class="text-gray-300">|</span>
+                    <a href="{% url 'press_release_mailer:contactlist_edit' list.id %}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        Edit
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full text-center py-12">
+            <div class="text-6xl mb-4">📋</div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">No contact lists yet</h3>
+            <p class="text-gray-500 mb-6">Create your first contact list to organize your contacts for email campaigns.</p>
+            <a href="{% url 'press_release_mailer:contactlist_add' %}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition">
+                Create Your First List
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

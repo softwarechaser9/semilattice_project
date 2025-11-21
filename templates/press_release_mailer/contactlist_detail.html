@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ contact_list.name }} - Contact List{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">{{ contact_list.name }}</h1>
+            <p class="text-gray-600 mt-1">{{ contact_list.contacts.count }} contacts in this list</p>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{% url 'press_release_mailer:contactlist_edit' contact_list.id %}" 
+               class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                ✏️ Edit List
+            </a>
+            <a href="{% url 'press_release_mailer:contactlist_list' %}" 
+               class="text-blue-600 hover:text-blue-800 font-medium px-4 py-2">
+                ← Back to Lists
+            </a>
+        </div>
+    </div>
+
+    <!-- List Info -->
+    {% if contact_list.description %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <p class="text-gray-700">{{ contact_list.description }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Contacts in List -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-xl font-semibold text-gray-900">Contacts</h2>
+            <a href="{% url 'press_release_mailer:contactlist_edit' contact_list.id %}" 
+               class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                ➕ Add/Remove Contacts
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            {% if contacts %}
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for contact in contacts %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <a href="{% url 'press_release_mailer:contact_detail' contact.id %}" class="text-blue-600 hover:text-blue-800 font-medium">
+                                {{ contact.full_name }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ contact.email }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ contact.organization|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if contact.category %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {{ contact.category }}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <a href="{% url 'press_release_mailer:contact_detail' contact.id %}" class="text-blue-600 hover:text-blue-900">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-12">
+                <div class="text-6xl mb-4">📭</div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">No contacts in this list</h3>
+                <p class="text-gray-500 mb-6">Add contacts to start building your list.</p>
+                <a href="{% url 'press_release_mailer:contactlist_edit' contact_list.id %}" 
+                   class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition">
+                    Add Contacts
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
+        <div class="flex space-x-3">
+            <a href="{% url 'press_release_mailer:distribution_create' %}" 
+               class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                📨 Send Email to This List
+            </a>
+            <a href="{% url 'press_release_mailer:contactlist_delete' contact_list.id %}" 
+               class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                🗑️ Delete List
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

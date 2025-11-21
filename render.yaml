@@ -1,0 +1,66 @@
+# Render.yaml - Infrastructure as Code
+# This file defines all Render services for deployment
+
+services:
+  # Django Web Service
+  - type: web
+    name: press-release-mailer-web
+    runtime: python
+    plan: professional
+    buildCommand: bash build.sh
+    startCommand: gunicorn semilattice_project.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: DATABASE_URL
+        fromDatabase:
+          name: press-release-mailer-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: press-release-mailer-redis
+          property: connectionString
+    disk:
+      name: media
+      mountPath: /opt/render/project/src/media
+      sizeGB: 1
+
+  # Celery Worker Service
+  - type: worker
+    name: press-release-mailer-celery
+    runtime: python
+    plan: professional
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A semilattice_project worker --loglevel=info --pool=solo --concurrency=2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: SECRET_KEY
+        sync: false  # Must be same as web service
+      - key: DEBUG
+        value: False
+      - key: DATABASE_URL
+        fromDatabase:
+          name: press-release-mailer-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: press-release-mailer-redis
+          property: connectionString
+
+databases:
+  - name: press-release-mailer-db
+    plan: professional
+    databaseName: press_release_db
+    user: press_release_user
+
+# Redis for Celery broker/backend
+# Note: You need to create this manually in Render Dashboard first
+# Services > New > Redis > Name: press-release-mailer-redis
+

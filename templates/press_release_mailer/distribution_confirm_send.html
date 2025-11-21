@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirm Send - Press Release Mailer{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-green-500 to-green-600 px-6 py-8 text-white rounded-t-lg">
+            <div class="text-center">
+                <svg class="w-16 h-16 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                <h1 class="text-3xl font-bold">Ready to Send?</h1>
+                <p class="mt-2 text-green-100">Confirm you want to send this email campaign</p>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <!-- Campaign Summary -->
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Campaign Summary</h2>
+                
+                <div class="space-y-3">
+                    <div class="flex justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Campaign Name:</span>
+                        <span class="font-semibold text-gray-900">{{ distribution.name }}</span>
+                    </div>
+                    
+                    <div class="flex justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Subject:</span>
+                        <span class="font-semibold text-gray-900">{{ distribution.subject }}</span>
+                    </div>
+                    
+                    <div class="flex justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Total Recipients:</span>
+                        <span class="font-semibold text-gray-900">{{ distribution.total_recipients }}</span>
+                    </div>
+
+                    {% if attachments %}
+                    <div class="py-2 border-b border-gray-200">
+                        <span class="text-gray-600 block mb-2">Attachments:</span>
+                        <div class="space-y-1 ml-4">
+                            {% for attachment in attachments %}
+                                <div class="flex items-center text-sm text-gray-700">
+                                    <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                    </svg>
+                                    {{ attachment.filename }}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if distribution.scheduled_at %}
+                    <div class="flex justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Scheduled For:</span>
+                        <span class="font-semibold text-gray-900">{{ distribution.scheduled_at|date:"F j, Y, g:i A" }}</span>
+                    </div>
+                    {% else %}
+                    <div class="flex justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Send Time:</span>
+                        <span class="font-semibold text-green-600">Immediately</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Warning Box -->
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-yellow-800">Important Reminders</h3>
+                        <div class="mt-2 text-sm text-yellow-700">
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>Emails will be sent from your configured SMTP server</li>
+                                <li>This action cannot be undone once started</li>
+                                <li>Large campaigns may take several minutes to complete</li>
+                                <li>You can monitor progress from the campaign detail page</li>
+                                {% if not distribution.scheduled_at %}
+                                <li><strong>Sending will start immediately</strong></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <form method="post" class="space-y-3">
+                {% csrf_token %}
+                
+                <button type="submit" 
+                        class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-lg transition duration-150">
+                    ✉️ Yes, Send {{ distribution.total_recipients }} Email{{ distribution.total_recipients|pluralize }}
+                </button>
+                
+                <a href="{% url 'press_release_mailer:distribution_preview' distribution.pk %}" 
+                   class="block w-full px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold text-center transition duration-150">
+                    ← Back to Preview
+                </a>
+                
+                <a href="{% url 'press_release_mailer:distribution_detail' distribution.pk %}" 
+                   class="block w-full text-center text-gray-600 hover:text-gray-800 text-sm">
+                    Cancel and return to campaign
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Email Configuration Check -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 class="font-semibold text-blue-900 mb-2">📧 Email Configuration</h3>
+        <p class="text-sm text-blue-800">
+            Emails will be sent using your configured SMTP settings. 
+            If you haven't tested email delivery yet, we recommend doing so from the 
+            <a href="{% url 'press_release_mailer:test_email' %}" class="underline font-semibold">Test Email page</a> first.
+        </p>
+    </div>
+</div>
+{% endblock %}

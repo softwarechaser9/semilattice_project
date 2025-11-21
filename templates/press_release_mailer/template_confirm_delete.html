@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete Template - Press Release Mailer{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Header -->
+    <div>
+        <a href="{% url 'press_release_mailer:template_detail' template.id %}" class="text-blue-600 hover:text-blue-800 text-sm font-medium mb-2 inline-block">
+            ← Back to Template
+        </a>
+        <h1 class="text-3xl font-bold text-gray-900">Delete Template</h1>
+    </div>
+
+    <!-- Confirmation Card -->
+    <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+        <div class="flex items-start mb-6">
+            <div class="flex-shrink-0">
+                <div class="flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                    <span class="text-2xl">⚠️</span>
+                </div>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">
+                    Are you sure you want to delete this template?
+                </h3>
+                <p class="text-gray-600 mb-4">
+                    This action cannot be undone. The template will be permanently removed.
+                </p>
+            </div>
+        </div>
+
+        <!-- Template Info -->
+        <div class="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
+            <h4 class="font-semibold text-gray-900 mb-2">{{ template.name }}</h4>
+            <p class="text-sm text-gray-600 mb-2">
+                <strong>Subject:</strong> {{ template.subject }}
+            </p>
+            <p class="text-sm text-gray-600">
+                <strong>Created:</strong> {{ template.created_at|date:"F d, Y" }}
+            </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <form method="post" class="flex justify-end space-x-3">
+            {% csrf_token %}
+            <a href="{% url 'press_release_mailer:template_detail' template.id %}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition">
+                Cancel
+            </a>
+            <button type="submit" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition shadow-sm hover:shadow-md">
+                Delete Template
+            </button>
+        </form>
+    </div>
+
+    <!-- Warning Info -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h4 class="font-semibold text-yellow-900 mb-2">⚠️ Important</h4>
+        <p class="text-sm text-yellow-800">
+            Any campaigns that used this template will not be affected, but you won't be able to reuse this template for new campaigns.
+        </p>
+    </div>
+</div>
+{% endblock %}

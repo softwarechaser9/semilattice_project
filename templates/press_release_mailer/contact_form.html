@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Email Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">{{ title }}</h1>
+        <a href="{% url 'press_release_mailer:contact_list' %}" class="text-blue-600 hover:text-blue-800 font-medium">
+            ← Back to Contacts
+        </a>
+    </div>
+
+    <!-- Form -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Basic Information -->
+            <div class="border-b border-gray-200 pb-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Basic Information</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_first_name" class="block text-sm font-medium text-gray-700 mb-2">
+                            First Name <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_last_name" class="block text-sm font-medium text-gray-700 mb-2">
+                            Last Name <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.last_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="id_email" class="block text-sm font-medium text-gray-700 mb-2">
+                            Email Address <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.email.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organization Details -->
+            <div class="border-b border-gray-200 pb-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Organization Details</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_organization" class="block text-sm font-medium text-gray-700 mb-2">
+                            Organization
+                        </label>
+                        {{ form.organization }}
+                    </div>
+                    <div>
+                        <label for="id_job_title" class="block text-sm font-medium text-gray-700 mb-2">
+                            Job Title
+                        </label>
+                        {{ form.job_title }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Details -->
+            <div class="border-b border-gray-200 pb-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Contact Details</h2>
+                <div>
+                    <label for="id_phone" class="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number
+                    </label>
+                    {{ form.phone }}
+                </div>
+            </div>
+
+            <!-- Address (Collapsible) -->
+            <details class="border-b border-gray-200 pb-6">
+                <summary class="text-xl font-semibold text-gray-900 mb-4 cursor-pointer hover:text-blue-600">
+                    Address (Optional)
+                </summary>
+                <div class="space-y-4 mt-4">
+                    <div>
+                        <label for="id_address" class="block text-sm font-medium text-gray-700 mb-2">
+                            Street Address
+                        </label>
+                        {{ form.address }}
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="id_city" class="block text-sm font-medium text-gray-700 mb-2">
+                                City
+                            </label>
+                            {{ form.city }}
+                        </div>
+                        <div>
+                            <label for="id_state" class="block text-sm font-medium text-gray-700 mb-2">
+                                State/Province
+                            </label>
+                            {{ form.state }}
+                        </div>
+                        <div>
+                            <label for="id_country" class="block text-sm font-medium text-gray-700 mb-2">
+                                Country
+                            </label>
+                            {{ form.country }}
+                        </div>
+                        <div>
+                            <label for="id_postal_code" class="block text-sm font-medium text-gray-700 mb-2">
+                                Postal Code
+                            </label>
+                            {{ form.postal_code }}
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Classification -->
+            <div class="border-b border-gray-200 pb-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Classification</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_category" class="block text-sm font-medium text-gray-700 mb-2">
+                            Category
+                        </label>
+                        {{ form.category }}
+                        <p class="mt-1 text-xs text-gray-500">e.g., Press, Blogger, Influencer</p>
+                    </div>
+                    <div>
+                        <label for="id_tags" class="block text-sm font-medium text-gray-700 mb-2">
+                            Tags
+                        </label>
+                        {{ form.tags }}
+                        <p class="mt-1 text-xs text-gray-500">Comma-separated: tech, news, business</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status & Notes -->
+            <div class="space-y-4">
+                <div class="flex items-center">
+                    {{ form.is_active }}
+                    <label for="id_is_active" class="ml-2 text-sm font-medium text-gray-700">
+                        Active (uncheck to mark as unsubscribed)
+                    </label>
+                </div>
+                <div>
+                    <label for="id_notes" class="block text-sm font-medium text-gray-700 mb-2">
+                        Notes
+                    </label>
+                    {{ form.notes }}
+                </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                <a href="{% url 'press_release_mailer:contact_list' %}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition">
+                    Cancel
+                </a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-sm hover:shadow-md">
+                    {{ action }} Contact
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

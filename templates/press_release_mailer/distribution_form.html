@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Press Release Mailer{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">{{ title }}</h1>
+            <p class="mt-1 text-gray-600">Compose and send press releases to your contacts</p>
+        </div>
+        <a href="{% url 'press_release_mailer:distribution_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+            ← Back to Campaigns
+        </a>
+    </div>
+
+    <!-- Campaign Form -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <form method="post" enctype="multipart/form-data" id="campaignForm">
+            {% csrf_token %}
+            
+            <div class="p-6 space-y-6">
+                <!-- Campaign Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Campaign Name <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.name.errors|first }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">{{ form.name.help_text }}</p>
+                </div>
+
+                <!-- Template Selection (Optional) -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            {{ form.use_template }}
+                        </div>
+                        <div class="ml-3">
+                            <label for="{{ form.use_template.id_for_label }}" class="font-medium text-gray-900">
+                                Use Email Template
+                            </label>
+                            <p class="text-sm text-gray-600">Load content from a saved template</p>
+                        </div>
+                    </div>
+                    
+                    <div id="templateSelect" class="mt-4 hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Template</label>
+                        {{ form.email_template }}
+                    </div>
+                </div>
+
+                <!-- Email Subject -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Email Subject <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.subject }}
+                    {% if form.subject.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.subject.errors|first }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">{{ form.subject.help_text }}</p>
+                </div>
+
+                <!-- Email Body -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Email Body <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.body }}
+                    {% if form.body.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.body.errors|first }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">{{ form.body.help_text }}</p>
+                    
+                    <!-- Mail Merge Variables Reference -->
+                    <div class="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p class="text-xs font-medium text-gray-700 mb-1">Available Mail Merge Variables:</p>
+                        <code class="text-xs text-gray-600">
+                            {% templatetag openvariable %}first_name{% templatetag closevariable %}, 
+                            {% templatetag openvariable %}last_name{% templatetag closevariable %}, 
+                            {% templatetag openvariable %}full_name{% templatetag closevariable %}, 
+                            {% templatetag openvariable %}email{% templatetag closevariable %}, 
+                            {% templatetag openvariable %}organization{% templatetag closevariable %}, 
+                            {% templatetag openvariable %}job_title{% templatetag closevariable %}
+                        </code>
+                    </div>
+                </div>
+
+                <!-- Recipients Section -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">📧 Recipients</h3>
+                    
+                    <!-- Contact Lists -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Contact Lists <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.contact_lists }}
+                        {% if form.contact_lists.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.contact_lists.errors|first }}</p>
+                        {% endif %}
+                        <p class="mt-1 text-xs text-gray-500">{{ form.contact_lists.help_text }}</p>
+                    </div>
+
+                    <!-- Individual Contacts (Optional) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Additional Individual Contacts (Optional)
+                        </label>
+                        {{ form.individual_contacts }}
+                        {% if form.individual_contacts.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.individual_contacts.errors|first }}</p>
+                        {% endif %}
+                        <p class="mt-1 text-xs text-gray-500">Add specific contacts beyond the lists above</p>
+                    </div>
+                </div>
+
+                <!-- Attachments -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">📎 Attachments</h3>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Upload Files (Optional)
+                        </label>
+                        <input type="file" name="attachments" multiple
+                               class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        {% if form.attachments.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.attachments.errors|first }}</p>
+                        {% endif %}
+                        <p class="mt-1 text-xs text-gray-500">You can select multiple files (PDF, images, documents)</p>
+                    </div>
+
+                    {% if distribution.attachments.all %}
+                        <div class="mt-4">
+                            <p class="text-sm font-medium text-gray-700 mb-2">Current Attachments:</p>
+                            <ul class="space-y-2">
+                                {% for attachment in distribution.attachments.all %}
+                                    <li class="flex items-center text-sm text-gray-600">
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                        </svg>
+                                        {{ attachment.filename }} ({{ attachment.file_size_mb }} MB)
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Scheduling -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">⏰ Schedule (Optional)</h3>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Send At
+                        </label>
+                        {{ form.scheduled_at }}
+                        {% if form.scheduled_at.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.scheduled_at.errors|first }}</p>
+                        {% endif %}
+                        <p class="mt-1 text-xs text-gray-500">{{ form.scheduled_at.help_text }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between">
+                <a href="{% url 'press_release_mailer:distribution_list' %}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">
+                    Cancel
+                </a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    {{ action }} Campaign & Preview →
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Help Section -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 class="font-semibold text-blue-900 mb-2">💡 Quick Tips</h3>
+        <ul class="text-sm text-blue-800 space-y-1">
+            <li>• Use mail merge variables to personalize each email automatically</li>
+            <li>• Select multiple contact lists by holding Ctrl/Cmd while clicking</li>
+            <li>• You can upload multiple files as attachments (press releases, images, etc.)</li>
+            <li>• Leave scheduling blank to send immediately, or choose a future date/time</li>
+            <li>• After creation, you'll see a preview before sending</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+// Toggle template selection
+function toggleTemplateSelect() {
+    const checkbox = document.getElementById('{{ form.use_template.id_for_label }}');
+    const selectDiv = document.getElementById('templateSelect');
+    if (checkbox.checked) {
+        selectDiv.classList.remove('hidden');
+    } else {
+        selectDiv.classList.add('hidden');
+        // Reset template selection when unchecked
+        const templateSelect = document.getElementById('{{ form.email_template.id_for_label }}');
+        templateSelect.value = '';
+    }
+}
+
+// Load template content when selected
+function loadTemplate() {
+    const checkbox = document.getElementById('{{ form.use_template.id_for_label }}');
+    if (!checkbox.checked) return;
+    
+    const templateSelect = document.getElementById('{{ form.email_template.id_for_label }}');
+    const templateId = templateSelect.value;
+    
+    if (templateId) {
+        // Fetch template data via AJAX
+        fetch(`/email-contacts/api/templates/${templateId}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Populate subject and body fields
+                    document.getElementById('{{ form.subject.id_for_label }}').value = data.template.subject;
+                    document.getElementById('{{ form.body.id_for_label }}').value = data.template.body;
+                    
+                    // Show success message
+                    console.log('Template loaded:', data.template.name);
+                } else {
+                    console.error('Error loading template:', data.error);
+                    alert('Error loading template. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching template:', error);
+                alert('Error loading template. Please try again.');
+            });
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleTemplateSelect();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Email Contacts - Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">📧 Email Contact Manager</h1>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Active Contacts -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div class="text-center">
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Active Contacts</h3>
+                <p class="text-4xl font-bold text-blue-600 mb-3">{{ total_contacts }}</p>
+                <a href="{% url 'press_release_mailer:contact_list' %}" class="inline-block bg-blue-50 text-blue-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-100 transition">
+                    View All
+                </a>
+            </div>
+        </div>
+
+        <!-- Contact Lists -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div class="text-center">
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Contact Lists</h3>
+                <p class="text-4xl font-bold text-green-600 mb-3">{{ total_lists }}</p>
+                <a href="{% url 'press_release_mailer:contactlist_list' %}" class="inline-block bg-green-50 text-green-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-green-100 transition">
+                    View Lists
+                </a>
+            </div>
+        </div>
+
+        <!-- Templates -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div class="text-center">
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Email Templates</h3>
+                <p class="text-4xl font-bold text-purple-600 mb-3">{{ total_templates }}</p>
+                <a href="{% url 'press_release_mailer:template_list' %}" class="inline-block bg-purple-50 text-purple-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-100 transition">
+                    View Templates
+                </a>
+            </div>
+        </div>
+
+        <!-- Email Campaigns -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div class="text-center">
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Email Campaigns</h3>
+                <p class="text-4xl font-bold text-red-600 mb-3">{{ total_distributions }}</p>
+                <a href="{% url 'press_release_mailer:distribution_list' %}" class="inline-block bg-red-50 text-red-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-100 transition">
+                    View All
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Bar -->
+    <div class="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <a href="{% url 'press_release_mailer:contact_add' %}" class="flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-3 rounded-lg font-medium transition backdrop-blur-sm">
+                <span class="text-xl mr-2">➕</span>
+                Add Contact
+            </a>
+            <a href="{% url 'press_release_mailer:contactlist_add' %}" class="flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-3 rounded-lg font-medium transition backdrop-blur-sm">
+                <span class="text-xl mr-2">�</span>
+                Add Contact List
+            </a>
+            <a href="{% url 'press_release_mailer:template_add' %}" class="flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-3 rounded-lg font-medium transition backdrop-blur-sm">
+                <span class="text-xl mr-2">📝</span>
+                Create Template
+            </a>
+            <a href="{% url 'press_release_mailer:distribution_create' %}" class="flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-3 rounded-lg font-medium transition backdrop-blur-sm">
+                <span class="text-xl mr-2">📧</span>
+                New Campaign
+            </a>
+        </div>
+    </div>
+
+    <!-- Three Column Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Recent Contacts -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900">📇 Recent Contacts</h2>
+                <a href="{% url 'press_release_mailer:contact_list' %}" class="text-sm text-blue-600 hover:text-blue-800">View All →</a>
+            </div>
+            <div class="p-4">
+                {% if recent_contacts %}
+                    <div class="space-y-3">
+                        {% for contact in recent_contacts %}
+                        <a href="{% url 'press_release_mailer:contact_detail' contact.pk %}" class="block p-3 hover:bg-gray-50 rounded-lg transition border border-gray-100">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 truncate">{{ contact.full_name }}</p>
+                                    <p class="text-xs text-gray-500 truncate">{{ contact.email }}</p>
+                                    {% if contact.organization %}
+                                        <p class="text-xs text-gray-400 truncate mt-1">{{ contact.organization }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="ml-2">
+                                    {% if contact.is_active %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                            Active
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-8">
+                        <div class="text-4xl mb-2">📭</div>
+                        <p class="text-sm text-gray-500 mb-3">No contacts yet</p>
+                        <a href="{% url 'press_release_mailer:contact_add' %}" class="inline-block text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+                            Add First Contact
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Contact Lists -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900">📋 Contact Lists</h2>
+                <a href="{% url 'press_release_mailer:contactlist_list' %}" class="text-sm text-blue-600 hover:text-blue-800">View All →</a>
+            </div>
+            <div class="p-4">
+                {% if contact_lists %}
+                    <div class="space-y-3">
+                        {% for list in contact_lists %}
+                        <a href="{% url 'press_release_mailer:contactlist_detail' list.pk %}" class="block p-3 hover:bg-gray-50 rounded-lg transition border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 truncate">{{ list.name }}</p>
+                                    <p class="text-xs text-gray-500 mt-1">{{ list.contact_count }} contact{{ list.contact_count|pluralize }}</p>
+                                </div>
+                                <div class="ml-2">
+                                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">
+                                        {{ list.contact_count }}
+                                    </span>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-8">
+                        <div class="text-4xl mb-2">📂</div>
+                        <p class="text-sm text-gray-500 mb-3">No lists yet</p>
+                        <a href="{% url 'press_release_mailer:contactlist_add' %}" class="inline-block text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+                            Create First List
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Email Campaigns -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900">📧 Recent Campaigns</h2>
+                <a href="{% url 'press_release_mailer:distribution_list' %}" class="text-sm text-blue-600 hover:text-blue-800">View All →</a>
+            </div>
+            <div class="p-4">
+                {% if recent_distributions %}
+                    <div class="space-y-3">
+                        {% for dist in recent_distributions %}
+                        <a href="{% url 'press_release_mailer:distribution_detail' dist.pk %}" class="block p-3 hover:bg-gray-50 rounded-lg transition border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 truncate">{{ dist.name }}</p>
+                                </div>
+                                <span class="ml-2 text-xs text-gray-500">{{ dist.created_at|date:"M d" }}</span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-8">
+                        <div class="text-4xl mb-2">📧</div>
+                        <p class="text-sm text-gray-500 mb-3">No campaigns yet</p>
+                        <a href="{% url 'press_release_mailer:distribution_create' %}" class="inline-block text-sm bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">
+                            Create Campaign
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

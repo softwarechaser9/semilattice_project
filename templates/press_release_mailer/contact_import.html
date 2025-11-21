@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import Contacts from CSV{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">📤 Import Contacts from CSV</h1>
+        <a href="{% url 'press_release_mailer:contact_list' %}" class="text-blue-600 hover:text-blue-800 font-medium">
+            ← Back to Contacts
+        </a>
+    </div>
+
+    <!-- Instructions -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h3 class="font-semibold text-blue-900 mb-3">📋 How to Import Contacts</h3>
+        <ol class="list-decimal list-inside space-y-2 text-sm text-blue-800">
+            <li>Download the sample CSV template to see the correct format</li>
+            <li>Fill in your contact information (email is required)</li>
+            <li>Save your file as CSV</li>
+            <li>Upload it using the form below</li>
+        </ol>
+        <div class="mt-4">
+            <a href="{% url 'press_release_mailer:download_sample_csv' %}" 
+               class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                📥 Download Sample Template
+            </a>
+        </div>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            
+            <div>
+                <label for="id_csv_file" class="block text-sm font-medium text-gray-700 mb-2">
+                    CSV File <span class="text-red-500">*</span>
+                </label>
+                {{ form.csv_file }}
+                {% if form.csv_file.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.csv_file.errors.0 }}</p>
+                {% endif %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.csv_file.help_text }}</p>
+            </div>
+
+            <div class="border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Import Options</h3>
+                
+                <div class="space-y-3">
+                    <div class="flex items-start">
+                        {{ form.skip_duplicates }}
+                        <label for="id_skip_duplicates" class="ml-2 text-sm text-gray-700">
+                            <span class="font-medium">{{ form.skip_duplicates.label }}</span>
+                            <p class="text-gray-500">Don't import contacts with emails that already exist in the database</p>
+                        </label>
+                    </div>
+
+                    <div class="flex items-start">
+                        {{ form.update_existing }}
+                        <label for="id_update_existing" class="ml-2 text-sm text-gray-700">
+                            <span class="font-medium">{{ form.update_existing.label }}</span>
+                            <p class="text-gray-500">Update contact information if the email already exists</p>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                <a href="{% url 'press_release_mailer:contact_list' %}" 
+                   class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-sm hover:shadow-md">
+                    📤 Import Contacts
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Supported Columns -->
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <h3 class="font-semibold text-gray-900 mb-3">📊 Supported CSV Columns</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">email</code> <span class="text-red-500">*</span>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">first_name</code>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">last_name</code>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">organization</code>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">job_title</code>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">phone</code>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">category</code>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">tags</code>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border border-gray-200">
+                <code class="text-blue-600">notes</code>
+            </div>
+        </div>
+        <p class="mt-3 text-xs text-gray-600">
+            <span class="text-red-500">*</span> Required field. The import tool also recognizes common variations like "Email Address", "FirstName", "Company", etc.
+        </p>
+    </div>
+</div>
+{% endblock %}

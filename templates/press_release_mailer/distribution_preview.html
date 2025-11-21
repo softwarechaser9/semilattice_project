@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block title %}Preview Campaign - Press Release Mailer{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <h1 class="text-3xl font-bold text-gray-900">📧 Preview Campaign</h1>
+            <span class="px-3 py-1 text-sm font-medium rounded-full bg-yellow-100 text-yellow-800">
+                {{ distribution.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600">Review personalized emails before sending</p>
+    </div>
+
+    <!-- Campaign Summary -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Campaign Details</h2>
+            
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <p class="text-sm text-gray-600">Campaign Name</p>
+                    <p class="font-semibold text-gray-900">{{ distribution.name }}</p>
+                </div>
+                
+                <div>
+                    <p class="text-sm text-gray-600">Total Recipients</p>
+                    <p class="font-semibold text-gray-900">{{ total_recipients }} contacts</p>
+                </div>
+                
+                <div class="col-span-2">
+                    <p class="text-sm text-gray-600 mb-1">Selected Lists</p>
+                    <div class="flex flex-wrap gap-2">
+                        {% for list in distribution.contact_lists.all %}
+                            <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                                {{ list.name }} ({{ list.contact_count }} contacts)
+                            </span>
+                        {% empty %}
+                            <span class="text-gray-500 text-sm">No lists selected</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {% if attachments %}
+                <div class="col-span-2">
+                    <p class="text-sm text-gray-600 mb-1">Attachments</p>
+                    <div class="space-y-2">
+                        {% for attachment in attachments %}
+                            <div class="flex items-center text-sm text-gray-700">
+                                <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                </svg>
+                                {{ attachment.filename }} ({{ attachment.file_size_mb }} MB)
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if distribution.scheduled_at %}
+                <div class="col-span-2">
+                    <p class="text-sm text-gray-600">Scheduled Send Time</p>
+                    <p class="font-semibold text-gray-900">{{ distribution.scheduled_at|date:"F j, Y, g:i A" }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Preview Samples -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-900">📬 Email Previews</h2>
+                <span class="text-sm text-gray-600">Showing sample recipients with personalization</span>
+            </div>
+
+            {% if previews %}
+                <div class="space-y-6">
+                    {% for preview in previews %}
+                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                            <!-- Email Header -->
+                            <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                                            {{ preview.contact.first_name|first }}{{ preview.contact.last_name|first }}
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-gray-900">{{ preview.contact.full_name }}</p>
+                                            <p class="text-sm text-gray-600">{{ preview.contact.email }}</p>
+                                        </div>
+                                    </div>
+                                    {% if preview.contact.organization %}
+                                        <span class="text-sm text-gray-500">{{ preview.contact.organization }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex items-center text-sm text-gray-600">
+                                    <span class="font-medium">Subject:</span>
+                                    <span class="ml-2">{{ preview.personalized_subject }}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Email Body -->
+                            <div class="p-4 bg-white">
+                                <div class="prose prose-sm max-w-none">
+                                    <pre class="whitespace-pre-wrap font-sans text-gray-800">{{ preview.personalized_body }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p class="text-sm text-blue-800">
+                        💡 {% if previews|length == 1 %}This is a sample preview{% elif previews|length == 2 %}These two are sample previews{% else %}These three are sample previews{% endif %}. Each recipient will receive a personalized version with their own information.
+                    </p>
+                </div>
+            {% else %}
+                <div class="text-center py-8 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    <p>No preview available - no recipients found</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="p-6">
+            <div class="flex items-center justify-between">
+                <div class="space-x-3">
+                    <a href="{% url 'press_release_mailer:distribution_edit' distribution.pk %}" 
+                       class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 inline-block">
+                        ✏️ Edit Campaign
+                    </a>
+                    <a href="{% url 'press_release_mailer:distribution_list' %}" 
+                       class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 inline-block">
+                        Cancel
+                    </a>
+                </div>
+                
+                {% if total_recipients > 0 %}
+                    <a href="{% url 'press_release_mailer:distribution_send' distribution.pk %}" 
+                       class="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold inline-block">
+                        ✉️ Send to {{ total_recipients }} Recipient{{ total_recipients|pluralize }}
+                    </a>
+                {% else %}
+                    <button disabled class="px-8 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-semibold">
+                        No Recipients to Send To
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Warning -->
+    <!-- <div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h3 class="font-semibold text-yellow-900 mb-2">⚠️ Before Sending</h3>
+        <ul class="text-sm text-yellow-800 space-y-1">
+            <li>• Double-check all recipient information and personalization</li>
+            <li>• Verify attachments are correct</li>
+            <li>• Test email settings if not already done</li>
+            <li>• Ensure your SMTP/Gmail credentials are properly configured</li>
+            <li>• Large campaigns may take time to complete</li>
+        </ul>
+    </div> -->
+</div>
+{% endblock %}
