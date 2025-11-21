@@ -230,7 +230,8 @@ def handle_distribution_attachments(distribution, files):
 def send_distribution_async(distribution, user=None):
     """
     Send a distribution asynchronously using Celery.
-    Queues the email sending task in the background.
+    For immediate send: Queues the task right away.
+    For scheduled send: Just sets status to 'scheduled', Celery Beat will trigger it later.
     
     Returns: tuple (success, message, total_recipients)
     """
@@ -251,25 +252,30 @@ def send_distribution_async(distribution, user=None):
     
     # Update status based on send time
     if is_scheduled:
+        # SCHEDULED SEND - Don't queue task yet, let Celery Beat handle it
         distribution.status = 'scheduled'
+        distribution.save()
+        logger.info(f"Distribution {distribution.id} scheduled for {distribution.scheduled_at}. Celery Beat will trigger it.")
+        return True, f"Email campaign scheduled for {distribution.total_recipients} recipients at {distribution.scheduled_at.strftime('%Y-%m-%d %H:%M UTC')}", distribution.total_recipients
     else:
-        # Immediate send - set to sending (Celery will process immediately)
+        # IMMEDIATE SEND - Queue the task now
         distribution.status = 'sending'
-    distribution.save()
-    
-    # Queue the Celery task
-    try:
-        task = celery_task.delay(distribution.id)
-        logger.info(f"Queued distribution {distribution.id} for sending. Task ID: {task.id}")
-        
-        # Store task ID for tracking (optional)
-        distribution.celery_task_id = task.id
         distribution.save()
         
-        return True, f"Email campaign queued for {distribution.total_recipients} recipients", distribution.total_recipients
-    
-    except Exception as e:
-        logger.error(f"Error queuing distribution task: {str(e)}")
-        distribution.status = 'failed'
-        distribution.save()
-        return False, f"Error queuing task: {str(e)}", 0
+        # Queue the Celery task
+        try:
+            task = celery_task.delay(distribution.id)
+            logger.info(f"Queued distribution {distribution.id} for immediate sending. Task ID: {task.id}")
+            
+            # Store task ID for tracking (optional)
+            distribution.celery_task_id = task.id
+            distribution.save()
+            
+            return True, f"Email campaign queued for {distribution.total_recipients} recipients", distribution.total_recipients
+        
+        except Exception as e:
+            logger.error(f"Error queuing distribution task: {str(e)}")
+            distribution.status = 'failed'
+            distribution.save()
+            return False, f"Error queuing task: {str(e)}", 0
+

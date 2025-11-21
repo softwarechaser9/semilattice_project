@@ -128,6 +128,16 @@ def send_distribution_async(self, distribution_id):
         distribution = Distribution.objects.get(id=distribution_id)
         logger.info(f"[TASK] Found distribution: {distribution.name}, current status: {distribution.status}")
         
+        # IMPORTANT: Check if scheduled time has arrived
+        from django.utils import timezone
+        if distribution.scheduled_at and distribution.scheduled_at > timezone.now():
+            logger.warning(f"[TASK] Distribution {distribution_id} scheduled for {distribution.scheduled_at}, not sending yet (current time: {timezone.now()})")
+            return {
+                'status': 'skipped',
+                'message': 'Distribution scheduled for future time',
+                'scheduled_at': distribution.scheduled_at.isoformat()
+            }
+        
         # Validate email settings
         is_valid, validation_message = validate_email_settings()
         logger.info(f"[TASK] Email validation result: {is_valid}, message: {validation_message}")
