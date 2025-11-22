@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Import Record - Email Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <div class="text-center mb-6">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Delete Import Record?</h2>
+            <p class="text-gray-600">
+                Are you sure you want to delete this import record? This action cannot be undone.
+            </p>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="font-medium text-gray-700">Filename:</span>
+                    <p class="text-gray-900">{{ import_job.filename }}</p>
+                </div>
+                <div>
+                    <span class="font-medium text-gray-700">Status:</span>
+                    <p class="text-gray-900">{{ import_job.get_status_display }}</p>
+                </div>
+                <div>
+                    <span class="font-medium text-gray-700">Date:</span>
+                    <p class="text-gray-900">{{ import_job.created_at|date:"M d, Y H:i" }}</p>
+                </div>
+                <div>
+                    <span class="font-medium text-gray-700">Results:</span>
+                    <p class="text-gray-900">{{ import_job.summary }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-yellow-700">
+                        <strong>Note:</strong> This will only delete the import <em>record</em>, not the actual contacts. Your contacts will remain in the database.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <form method="post" class="flex space-x-3">
+            {% csrf_token %}
+            <button type="submit" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition">
+                🗑️ Yes, Delete Record
+            </button>
+            <a href="{% url 'press_release_mailer:contact_list' %}" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-3 px-4 rounded-lg text-center transition">
+                Cancel
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}

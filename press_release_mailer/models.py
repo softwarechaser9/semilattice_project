@@ -252,3 +252,93 @@ class EmailLog(models.Model):
     
     def __str__(self):
         return f"{self.contact.email} - {self.get_event_display()} at {self.timestamp}"
+
+
+class ImportJob(models.Model):
+    """Track CSV import jobs for async processing and user feedback"""
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    # User who initiated the import
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='import_jobs')
+    
+    # Task tracking
+    task_id = models.CharField(max_length=255, help_text="Celery task ID")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # File info
+    filename = models.CharField(max_length=255)
+    file_size = models.IntegerField(help_text="Size in bytes")
+    
+    # Import results
+    total_rows = models.IntegerField(default=0)
+    imported = models.IntegerField(default=0)
+    updated = models.IntegerField(default=0)
+    skipped = models.IntegerField(default=0)
+    
+    # Detailed feedback (JSON for errors/warnings)
+    errors = models.JSONField(default=list, blank=True, help_text="List of error messages")
+    warnings = models.JSONField(default=list, blank=True, help_text="List of warning messages")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Import Job'
+        verbose_name_plural = 'Import Jobs'
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.filename} - {self.get_status_display()} ({self.created_at})"
+    
+    @property
+    def duration_seconds(self):
+        """Calculate how long the import took"""
+        if self.started_at and self.completed_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        return None
+    
+    @property
+    def is_complete(self):
+        return self.status in ['completed', 'failed']
+    
+    @property
+    def summary(self):
+        """Human-readable summary of import results"""
+        if self.status == 'pending':
+            return "Waiting to start..."
+        elif self.status == 'processing':
+            return f"Processing {self.total_rows} rows..." if self.total_rows else "Processing..."
+        elif self.status == 'failed':
+            if self.errors and len(self.errors) > 0:
+                # Show the first error message, but clean it up
+                error_msg = str(self.errors[0])
+                # Remove "Import failed: " prefix if present (avoid duplication)
+                if error_msg.startswith('Import failed: '):
+                    error_msg = error_msg[15:]
+                return f"Failed: {error_msg}"
+            else:
+                return "Failed: An unexpected error occurred. Please try again or contact support."
+        else:  # completed
+            parts = []
+            if self.imported > 0:
+                parts.append(f"{self.imported} imported")
+            if self.updated > 0:
+                parts.append(f"{self.updated} updated")
+            if self.skipped > 0:
+                parts.append(f"{self.skipped} skipped")
+            
+            if not parts:
+                return "No changes"
+            return ", ".join(parts)

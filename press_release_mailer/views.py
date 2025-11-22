@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Count
-from .models import Contact, ContactList, EmailTemplate, Distribution, DistributionRecipient, Attachment
+from .models import Contact, ContactList, EmailTemplate, Distribution, DistributionRecipient, Attachment, ImportJob
 from .email_utils import send_test_email, send_single_email, apply_mail_merge, validate_email_settings
 from .forms import ContactForm, CSVImportForm, ContactListForm, EmailTemplateForm, DistributionForm
 from .csv_utils import import_contacts_from_csv, generate_sample_csv
@@ -88,6 +88,13 @@ def dashboard(request):
 @login_required
 def contact_list(request):
     """List all contacts with search and filter"""
+    
+    # Handle "Clear All Imports" action
+    if request.method == 'POST' and request.POST.get('delete_all_imports'):
+        deleted_count = ImportJob.objects.filter(user=request.user).delete()[0]
+        messages.success(request, f'✅ Deleted {deleted_count} import record{"s" if deleted_count != 1 else ""}!')
+        return redirect('press_release_mailer:contact_list')
+    
     contacts = Contact.objects.filter(created_by=request.user)
     
     # Search
@@ -112,10 +119,14 @@ def contact_list(request):
     elif is_active == 'false':
         contacts = contacts.filter(is_active=False)
     
+    # Get recent import jobs (last 5) for this user
+    recent_imports = ImportJob.objects.filter(user=request.user).order_by('-created_at')[:5]
+    
     context = {
         'contacts': contacts,
         'search_query': search_query,
         'categories': Contact.objects.filter(created_by=request.user).values_list('category', flat=True).distinct(),
+        'recent_imports': recent_imports,
     }
     return render(request, 'press_release_mailer/contact_list.html', context)
 
@@ -235,24 +246,39 @@ def contact_import(request):
                         
                         csv_content = decoded_content
                     
+                    # Create ImportJob record BEFORE queuing task
+                    import_job = ImportJob.objects.create(
+                        user=request.user,
+                        task_id='',  # Will be set after task.delay()
+                        status='pending',
+                        filename=csv_file.name,
+                        file_size=file_size,
+                        total_rows=int(estimated_rows)
+                    )
+                    
                     # Queue async task with file content (not file path)
                     task = import_csv_async.delay(
                         csv_content=csv_content,
                         skip_duplicates=skip_duplicates,
                         update_existing=update_existing,
-                        user_id=request.user.id
+                        user_id=request.user.id,
+                        import_job_id=import_job.id  # Pass ImportJob ID
                     )
+                    
+                    # Update ImportJob with Celery task ID
+                    import_job.task_id = task.id
+                    import_job.save()
                     
                     messages.success(
                         request,
-                        f"📤 Large CSV detected (~{int(estimated_rows)} rows). "
-                        f"Import is processing in the background. "
-                        f"This may take a few minutes. Check back shortly!"
+                        f"� Large CSV detected (~{int(estimated_rows)} rows). "
+                        f"Import #{import_job.id} is processing in the background. "
+                        f"This may take a few minutes."
                     )
                     messages.info(
                         request,
-                        f"🔄 You can continue using the app. "
-                        f"Contacts will appear as they're imported."
+                        f"💡 Check the 'Recent Imports' section on the Contacts page to see results. "
+                        f"The page will auto-refresh as imports complete."
                     )
                     
                 except Exception as e:
@@ -270,19 +296,35 @@ def contact_import(request):
                 )
                 
                 # Show results
-                if result['success']:
-                    success_msg = f"✅ Import complete! Imported: {result['imported']}, Updated: {result['updated']}, Skipped: {result['skipped']}"
-                    messages.success(request, success_msg)
+                if result['success'] or result['skipped'] > 0:
+                    # Show success message (even if only skipped items)
+                    if result['imported'] > 0 or result['updated'] > 0:
+                        success_msg = f"✅ Import complete! Imported: {result['imported']}, Updated: {result['updated']}, Skipped: {result['skipped']}"
+                        messages.success(request, success_msg)
+                    elif result['skipped'] > 0:
+                        # Only skipped items (all duplicates)
+                        info_msg = f"ℹ️  Import processed: All {result['skipped']} contacts already exist in your database."
+                        messages.info(request, info_msg)
                     
+                    # Show warnings (like duplicate emails)
                     if result['warnings']:
-                        for warning in result['warnings'][:5]:  # Show first 5 warnings
+                        # Show first 10 warnings (not just 5, for better visibility)
+                        for warning in result['warnings'][:10]:
                             messages.warning(request, warning)
+                        
+                        if len(result['warnings']) > 10:
+                            messages.info(request, f"... and {len(result['warnings']) - 10} more similar warnings")
                     
+                    # Show errors (real problems)
                     if result['errors']:
-                        for error in result['errors'][:5]:  # Show first 5 errors
+                        for error in result['errors'][:5]:
                             messages.error(request, error)
+                        
+                        if len(result['errors']) > 5:
+                            messages.error(request, f"... and {len(result['errors']) - 5} more errors")
                 else:
-                    messages.error(request, f"❌ Import failed: {', '.join(result['errors'])}")
+                    # Complete failure (no imports, no skips)
+                    messages.error(request, f"❌ Import failed: {', '.join(result['errors'][:3])}")
             
             return redirect('press_release_mailer:contact_list')
     else:
@@ -325,6 +367,22 @@ def download_sample_csv(request):
     response['Content-Disposition'] = 'attachment; filename="contact_import_template.csv"'
     response.write(generate_sample_csv())
     return response
+
+
+@login_required
+def import_job_delete(request, pk):
+    """Delete an import job record"""
+    import_job = get_object_or_404(ImportJob, pk=pk, user=request.user)
+    
+    if request.method == 'POST':
+        filename = import_job.filename
+        import_job.delete()
+        messages.success(request, f'✅ Import record "{filename}" deleted successfully!')
+        return redirect('press_release_mailer:contact_list')
+    
+    return render(request, 'press_release_mailer/import_job_confirm_delete.html', {
+        'import_job': import_job
+    })
 
 
 @login_required

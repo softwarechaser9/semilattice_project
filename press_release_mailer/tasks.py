@@ -353,7 +353,7 @@ def check_scheduled_distributions():
 
 
 @shared_task(bind=True)
-def import_csv_async(self, csv_content, skip_duplicates, update_existing, user_id):
+def import_csv_async(self, csv_content, skip_duplicates, update_existing, user_id, import_job_id=None):
     """
     Import contacts from CSV file asynchronously (for large imports)
     
@@ -365,17 +365,29 @@ def import_csv_async(self, csv_content, skip_duplicates, update_existing, user_i
         skip_duplicates: Skip contacts with duplicate emails
         update_existing: Update existing contacts if email matches
         user_id: ID of user importing contacts
+        import_job_id: ID of ImportJob to track progress (optional)
     
     Returns:
         dict: Import results with counts and errors
     """
     from .csv_utils import import_contacts_from_csv
     from django.contrib.auth.models import User
+    from .models import ImportJob
     from django.core.files.uploadedfile import InMemoryUploadedFile
     from io import BytesIO, StringIO
+    from django.utils import timezone
+    
+    import_job = None
     
     try:
         user = User.objects.get(id=user_id)
+        
+        # Get ImportJob if provided
+        if import_job_id:
+            import_job = ImportJob.objects.get(id=import_job_id)
+            import_job.status = 'processing'
+            import_job.started_at = timezone.now()
+            import_job.save()
         
         # Convert CSV content string to file-like object
         # csv_utils expects a file object with .read() method
@@ -396,15 +408,57 @@ def import_csv_async(self, csv_content, skip_duplicates, update_existing, user_i
             created_by=user
         )
         
-        logger.info(f"CSV async import completed for user {user_id}: {result['imported']} imported, {result['skipped']} skipped")
+        # Update ImportJob with results
+        if import_job:
+            # Consider it successful if:
+            # 1. We imported or updated contacts, OR
+            # 2. We processed rows and they were all skipped (duplicates/valid skips)
+            # Only mark as failed if there were errors and nothing was processed
+            has_results = (result['imported'] > 0 or result['updated'] > 0 or result['skipped'] > 0)
+            has_only_errors = (result['errors'] and not has_results)
+            
+            import_job.status = 'failed' if has_only_errors else 'completed'
+            import_job.total_rows = result['total_rows']
+            import_job.imported = result['imported']
+            import_job.updated = result['updated']
+            import_job.skipped = result['skipped']
+            import_job.errors = result['errors'][:50]  # Store first 50 errors
+            import_job.warnings = result['warnings'][:100]  # Store first 100 warnings
+            import_job.completed_at = timezone.now()
+            import_job.save()
+        
+        logger.info(
+            f"CSV async import completed for user {user_id}: "
+            f"{result['imported']} imported, {result['updated']} updated, "
+            f"{result['skipped']} skipped"
+        )
         return result
         
     except Exception as e:
-        logger.error(f"Error in async CSV import for user {user_id}: {str(e)}")
+        import traceback
+        error_msg = f"Import failed: {str(e)}"
+        traceback_str = traceback.format_exc()
+        logger.error(f"Error in async CSV import for user {user_id}: {error_msg}")
+        logger.error(f"Traceback: {traceback_str}")
+        
+        # Update ImportJob with failure
+        if import_job:
+            import_job.status = 'failed'
+            # Include exception type and first line of traceback for debugging
+            import_job.errors = [
+                error_msg,
+                f"Exception type: {type(e).__name__}",
+                f"Traceback (last line): {traceback_str.split(chr(10))[-2] if traceback_str else 'N/A'}"
+            ]
+            import_job.completed_at = timezone.now()
+            import_job.save()
+        
         return {
             'success': False,
-            'errors': [f"Import failed: {str(e)}"],
+            'errors': [error_msg],
             'imported': 0,
             'updated': 0,
-            'skipped': 0
+            'skipped': 0,
+            'total_rows': 0,
+            'warnings': []
         }

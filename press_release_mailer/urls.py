@@ -17,6 +17,7 @@ urlpatterns = [
     path('contacts/import/', views.contact_import, name='contact_import'),
     path('contacts/export/', views.contact_export, name='contact_export'),
     path('contacts/sample-csv/', views.download_sample_csv, name='download_sample_csv'),
+    path('contacts/import-job/<int:pk>/delete/', views.import_job_delete, name='import_job_delete'),
     
     # Contact Lists
     path('lists/', views.contactlist_list, name='contactlist_list'),

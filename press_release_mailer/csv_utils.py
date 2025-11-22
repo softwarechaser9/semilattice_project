@@ -31,16 +31,57 @@ def parse_csv_file(csv_file):
         else:
             return (False, "Unable to decode CSV file. Please ensure it's saved with UTF-8 encoding.")
         
-        # Parse CSV
-        csv_reader = csv.DictReader(io.StringIO(decoded_data))
+        # Auto-detect delimiter (comma or tab)
+        # Check first few lines to determine delimiter
+        sample_lines = decoded_data.split('\n')[:5]
+        sample_text = '\n'.join(sample_lines)
+        
+        # Use csv.Sniffer to detect delimiter
+        try:
+            sniffer = csv.Sniffer()
+            delimiter = sniffer.sniff(sample_text).delimiter
+        except Exception:
+            # Fallback: count commas vs tabs in first line
+            first_line = sample_lines[0] if sample_lines else ''
+            comma_count = first_line.count(',')
+            tab_count = first_line.count('\t')
+            delimiter = '\t' if tab_count > comma_count else ','
+        
+        # Parse CSV with detected delimiter
+        csv_reader = csv.DictReader(io.StringIO(decoded_data), delimiter=delimiter)
         
         # Validate headers
         fieldnames = csv_reader.fieldnames
         if not fieldnames:
             return (False, "CSV file is empty or has no headers.")
         
-        # Read all rows
-        rows = list(csv_reader)
+        # Read all rows and filter out completely empty rows
+        all_rows = list(csv_reader)
+        
+        # Filter out rows where ALL fields are empty (common in Excel exports)
+        # Also filter out rows that have no email address (likely invalid/empty)
+        rows = []
+        for row in all_rows:
+            # Check if at least one field has meaningful data
+            has_data = any(str(value).strip() for value in row.values() if value)
+            
+            if not has_data:
+                continue  # Skip completely empty rows
+            
+            # Check if row has an email-like field
+            normalized_row = {k.lower().strip().replace(' ', '_'): v.strip() if isinstance(v, str) else v 
+                             for k, v in row.items()}
+            
+            has_email = False
+            for key in ['email', 'e-mail', 'e_mail', 'email_address']:
+                if key in normalized_row and normalized_row[key]:
+                    has_email = True
+                    break
+            
+            # Only include rows that have data AND have an email
+            # This filters out Excel artifact rows more aggressively
+            if has_data and has_email:
+                rows.append(row)
         
         if not rows:
             return (False, "CSV file contains headers but no data rows.")
@@ -56,7 +97,7 @@ def validate_contact_data(row, row_number):
     Validate a single contact row
     
     Args:
-        row: Dictionary with contact data
+        row: Dictionary with contact data (should be normalized keys)
         row_number: Row number for error reporting
     
     Returns:
@@ -65,15 +106,41 @@ def validate_contact_data(row, row_number):
     errors = []
     warnings = []
     
+    # Normalize row keys to handle different CSV column names
+    normalized_row = {k.lower().strip().replace(' ', '_'): v.strip() if isinstance(v, str) else v 
+                     for k, v in row.items()}
+    
+    # Check for email in various formats
+    email = None
+    for key in ['email', 'e-mail', 'e_mail', 'email_address']:
+        if key in normalized_row and normalized_row[key]:
+            email = normalized_row[key]
+            break
+    
     # Required fields
-    if not row.get('email', '').strip():
+    if not email:
         errors.append(f"Row {row_number}: Email is required")
     
-    if not row.get('first_name', '').strip() and not row.get('last_name', '').strip():
-        warnings.append(f"Row {row_number}: Both first_name and last_name are empty")
+    # Check for first/last name in various formats
+    first_name = None
+    for key in ['first_name', 'firstname', 'first', 'given_name']:
+        if key in normalized_row and normalized_row[key]:
+            first_name = normalized_row[key]
+            break
+    
+    last_name = None
+    for key in ['last_name', 'lastname', 'last', 'surname', 'family_name']:
+        if key in normalized_row and normalized_row[key]:
+            last_name = normalized_row[key]
+            break
+    
+    # Only warn about missing names if email exists AND both names are missing
+    # Don't warn if at least one name exists (many contacts only have first OR last name)
+    if email and not first_name and not last_name:
+        # This is just a warning, not an error - we can still import with email only
+        pass  # Don't add warning - email is the most important field
     
     # Validate email format (basic)
-    email = row.get('email', '').strip()
     if email and '@' not in email:
         errors.append(f"Row {row_number}: Invalid email format: {email}")
     
@@ -333,8 +400,25 @@ def import_contacts_from_csv(csv_file, skip_duplicates=True, update_existing=Fal
                     existing_contacts_dict[email] = new_contact
                     result['imported'] += 1
                 except Exception as e:
-                    result['errors'].append(f"Row {idx}: Error creating contact: {str(e)}")
-                    result['skipped'] += 1
+                    error_str = str(e).lower()
+                    # Check if it's a duplicate email error (catch both PostgreSQL and SQLite)
+                    # PostgreSQL: "duplicate key value violates unique constraint unique_email_per_user"
+                    # SQLite: "UNIQUE constraint failed: press_release_mailer_contact.email, press_release_mailer_contact.created_by_id"
+                    is_duplicate_error = (
+                        'unique_email_per_user' in error_str or 
+                        'duplicate key' in error_str or
+                        'unique constraint failed' in error_str or
+                        'press_release_mailer_contact.email' in error_str
+                    )
+                    
+                    if is_duplicate_error:
+                        # This is a duplicate - treat as warning, not error
+                        result['skipped'] += 1
+                        result['warnings'].append(f"Row {idx}: Skipped duplicate email (already in your contacts): {email}")
+                    else:
+                        # Some other error (real problem)
+                        result['errors'].append(f"Row {idx}: Error creating contact: {str(e)}")
+                        result['skipped'] += 1
         
         except Exception as e:
             # Catch any unexpected errors for this row
