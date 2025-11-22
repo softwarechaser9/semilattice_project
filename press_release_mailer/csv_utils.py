@@ -259,7 +259,28 @@ def import_contacts_from_csv(csv_file, skip_duplicates=True, update_existing=Fal
     rows = data_or_error
     result['total_rows'] = len(rows)
     
-    # Validate and import (NO transaction.atomic - handle errors row by row)
+    # OPTIMIZATION: Fetch all existing emails in ONE query (instead of 1 query per row)
+    all_emails_in_csv = []
+    for row in rows:
+        normalized_row = {k.lower().strip().replace(' ', '_'): v.strip() if isinstance(v, str) else v 
+                         for k, v in row.items()}
+        for key in ['email', 'e-mail', 'e_mail', 'email_address']:
+            if key in normalized_row and normalized_row[key]:
+                all_emails_in_csv.append(normalized_row[key].lower())
+                break
+    
+    # Get all existing contacts with these emails in ONE query
+    existing_contacts_dict = {}
+    if all_emails_in_csv:
+        # Query for existing contacts (case-insensitive email match)
+        existing_contacts = Contact.objects.filter(
+            created_by=created_by
+        ).filter(
+            email__in=[e.lower() for e in all_emails_in_csv]
+        )
+        existing_contacts_dict = {c.email.lower(): c for c in existing_contacts}
+    
+    # Validate and import (process row by row, but with pre-fetched duplicate data)
     for idx, row in enumerate(rows, start=2):  # Start at 2 (1 is header)
         try:
             # Validate
@@ -281,8 +302,8 @@ def import_contacts_from_csv(csv_file, skip_duplicates=True, update_existing=Fal
             
             email = contact_data['email'].lower()
             
-            # Check for duplicates
-            existing_contact = Contact.objects.filter(email__iexact=email).first()
+            # Check for duplicates (using pre-fetched dict - FAST!)
+            existing_contact = existing_contacts_dict.get(email)
             
             if existing_contact:
                 if update_existing:
@@ -301,10 +322,12 @@ def import_contacts_from_csv(csv_file, skip_duplicates=True, update_existing=Fal
             else:
                 # Create new contact
                 try:
-                    Contact.objects.create(
+                    new_contact = Contact.objects.create(
                         **contact_data,
                         created_by=created_by
                     )
+                    # Add to dict to detect duplicates within same CSV
+                    existing_contacts_dict[email] = new_contact
                     result['imported'] += 1
                 except Exception as e:
                     result['errors'].append(f"Row {idx}: Error creating contact: {str(e)}")
