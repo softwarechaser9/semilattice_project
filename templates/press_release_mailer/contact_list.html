@@ -46,6 +46,132 @@
         </form>
     </div>
 
+    <!-- Recent Import Jobs -->
+    {% if recent_imports %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-xl font-semibold text-gray-900">📊 Recent Imports</h2>
+            <div class="flex space-x-2">
+                <button onclick="location.reload()" class="text-sm text-blue-600 hover:text-blue-800">
+                    🔄 Refresh
+                </button>
+                {% if recent_imports|length > 1 %}
+                <button onclick="if(confirm('Delete all import history?')) { document.getElementById('deleteAllForm').submit(); }" class="text-sm text-red-600 hover:text-red-800">
+                    🗑️ Clear All
+                </button>
+                <form id="deleteAllForm" method="post" action="{% url 'press_release_mailer:contact_list' %}" style="display: none;">
+                    {% csrf_token %}
+                    <input type="hidden" name="delete_all_imports" value="1">
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        <div class="divide-y divide-gray-200">
+            {% for job in recent_imports %}
+            <div class="px-6 py-4 hover:bg-gray-50">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-sm font-medium text-gray-900">{{ job.filename }}</span>
+                            {% if job.status == 'completed' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                ✓ Completed
+                            </span>
+                            {% elif job.status == 'processing' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 animate-pulse">
+                                ⏳ Processing...
+                            </span>
+                            {% elif job.status == 'failed' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                ✗ Failed
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                ⏸ Pending
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">
+                            {{ job.summary }}
+                        </p>
+                        <p class="text-xs text-gray-400 mt-1">
+                            Started {{ job.created_at|timesince }} ago
+                            {% if job.completed_at %}
+                            • Completed in {{ job.duration_seconds|floatformat:1 }}s
+                            {% endif %}
+                        </p>
+                        
+                        <!-- Show warnings for completed jobs with skipped items -->
+                        {% if job.status == 'completed' and job.warnings %}
+                        <details class="mt-2">
+                            <summary class="text-xs text-yellow-600 cursor-pointer hover:text-yellow-800">
+                                ⚠️ {{ job.warnings|length }} warning{{ job.warnings|length|pluralize }} (click to view)
+                            </summary>
+                            <div class="mt-2 text-xs text-gray-600 bg-yellow-50 p-3 rounded border border-yellow-200 max-h-40 overflow-y-auto">
+                                {% for warning in job.warnings|slice:":20" %}
+                                <div class="mb-1">• {{ warning }}</div>
+                                {% endfor %}
+                                {% if job.warnings|length > 20 %}
+                                <div class="text-gray-500 italic">... and {{ job.warnings|length|add:"-20" }} more</div>
+                                {% endif %}
+                            </div>
+                        </details>
+                        {% endif %}
+                        
+                        <!-- Show errors for failed jobs -->
+                        {% if job.status == 'failed' and job.errors %}
+                        <div class="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                            {% for error in job.errors|slice:":3" %}
+                            <div>• {{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Delete button -->
+                    <div class="ml-4">
+                        <form method="post" action="{% url 'press_release_mailer:import_job_delete' job.id %}" onsubmit="return confirm('Delete this import record?');">
+                            {% csrf_token %}
+                            <button type="submit" class="text-gray-400 hover:text-red-600 transition" title="Delete this import record">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Auto-refresh script for pending/processing imports -->
+    <script>
+        (function() {
+            // Check if there are any pending or processing imports
+            {% if recent_imports %}
+            const importStatuses = [
+                {% for job in recent_imports %}
+                '{{ job.status }}'{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ];
+            
+            const hasPendingImports = importStatuses.some(function(status) {
+                return status === 'pending' || status === 'processing';
+            });
+            
+            if (hasPendingImports) {
+                // Auto-refresh every 5 seconds if there are active imports
+                console.log('Import in progress, auto-refreshing in 5 seconds...');
+                setTimeout(function() {
+                    location.reload();
+                }, 5000);
+            }
+            {% endif %}
+        })();
+    </script>
+    {% endif %}
+
     <!-- Contact List -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
