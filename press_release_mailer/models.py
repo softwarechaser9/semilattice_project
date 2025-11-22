@@ -9,7 +9,7 @@ class Contact(models.Model):
     # Basic Information
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
+    email = models.EmailField()  # Removed unique=True - now handled by Meta constraint
     
     # Organization Details
     organization = models.CharField(max_length=200, blank=True)
@@ -40,6 +40,13 @@ class Contact(models.Model):
         ordering = ['last_name', 'first_name']
         verbose_name = 'Contact'
         verbose_name_plural = 'Contacts'
+        # Unique constraint: email must be unique PER USER (not globally)
+        constraints = [
+            models.UniqueConstraint(
+                fields=['email', 'created_by'],
+                name='unique_email_per_user'
+            )
+        ]
     
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.email})"

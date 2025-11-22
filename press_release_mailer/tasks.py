@@ -350,3 +350,47 @@ def check_scheduled_distributions():
         'found': count,
         'triggered': sent_count
     }
+
+
+@shared_task(bind=True)
+def import_csv_async(self, csv_file_path, skip_duplicates, update_existing, user_id):
+    """
+    Import contacts from CSV file asynchronously (for large imports)
+    
+    Args:
+        csv_file_path: Path to uploaded CSV file
+        skip_duplicates: Skip contacts with duplicate emails
+        update_existing: Update existing contacts if email matches
+        user_id: ID of user importing contacts
+    
+    Returns:
+        dict: Import results with counts and errors
+    """
+    from .csv_utils import import_contacts_from_csv
+    from django.contrib.auth.models import User
+    from django.core.files import File
+    
+    try:
+        user = User.objects.get(id=user_id)
+        
+        # Open the CSV file
+        with open(csv_file_path, 'rb') as f:
+            result = import_contacts_from_csv(
+                csv_file=File(f),
+                skip_duplicates=skip_duplicates,
+                update_existing=update_existing,
+                created_by=user
+            )
+        
+        logger.info(f"CSV import completed: {result['imported']} imported, {result['skipped']} skipped")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in async CSV import: {str(e)}")
+        return {
+            'success': False,
+            'errors': [f"Import failed: {str(e)}"],
+            'imported': 0,
+            'updated': 0,
+            'skipped': 0
+        }

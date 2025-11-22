@@ -195,28 +195,80 @@ def contact_import(request):
             skip_duplicates = form.cleaned_data['skip_duplicates']
             update_existing = form.cleaned_data['update_existing']
             
-            # Import contacts
-            result = import_contacts_from_csv(
-                csv_file=csv_file,
-                skip_duplicates=skip_duplicates,
-                update_existing=update_existing,
-                created_by=request.user
-            )
+            # Check file size to decide sync vs async
+            # For files > 500 rows or > 100KB, use async processing
+            csv_file.seek(0, 2)  # Seek to end
+            file_size = csv_file.tell()
+            csv_file.seek(0)  # Reset to beginning
             
-            # Show results
-            if result['success']:
-                success_msg = f"✅ Import complete! Imported: {result['imported']}, Updated: {result['updated']}, Skipped: {result['skipped']}"
-                messages.success(request, success_msg)
+            # Quick row count estimate (rough)
+            sample = csv_file.read(10000)
+            csv_file.seek(0)
+            estimated_rows = file_size / max(len(sample), 1) * sample.count(b'\n')
+            
+            USE_ASYNC = estimated_rows > 500 or file_size > 100000  # 100KB
+            
+            if USE_ASYNC:
+                # ASYNC IMPORT - Save file and process in background
+                try:
+                    import os
+                    import tempfile
+                    from .tasks import import_csv_async
+                    
+                    # Save uploaded file temporarily
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_file:
+                        for chunk in csv_file.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    
+                    # Queue async task
+                    task = import_csv_async.delay(
+                        csv_file_path=temp_file_path,
+                        skip_duplicates=skip_duplicates,
+                        update_existing=update_existing,
+                        user_id=request.user.id
+                    )
+                    
+                    messages.success(
+                        request,
+                        f"📤 Large CSV detected (~{int(estimated_rows)} rows). "
+                        f"Import is processing in the background. "
+                        f"This may take a few minutes. Check back shortly!"
+                    )
+                    messages.info(
+                        request,
+                        f"🔄 You can continue using the app. "
+                        f"Contacts will appear as they're imported."
+                    )
+                    
+                except Exception as e:
+                    messages.error(request, f"❌ Error queuing import: {str(e)}")
+                    # Fall back to sync import
+                    USE_ASYNC = False
+            
+            if not USE_ASYNC:
+                # SYNC IMPORT - Process immediately (for small files)
+                result = import_contacts_from_csv(
+                    csv_file=csv_file,
+                    skip_duplicates=skip_duplicates,
+                    update_existing=update_existing,
+                    created_by=request.user
+                )
                 
-                if result['warnings']:
-                    for warning in result['warnings'][:5]:  # Show first 5 warnings
-                        messages.warning(request, warning)
-                
-                if result['errors']:
-                    for error in result['errors'][:5]:  # Show first 5 errors
-                        messages.error(request, error)
-            else:
-                messages.error(request, f"❌ Import failed: {', '.join(result['errors'])}")
+                # Show results
+                if result['success']:
+                    success_msg = f"✅ Import complete! Imported: {result['imported']}, Updated: {result['updated']}, Skipped: {result['skipped']}"
+                    messages.success(request, success_msg)
+                    
+                    if result['warnings']:
+                        for warning in result['warnings'][:5]:  # Show first 5 warnings
+                            messages.warning(request, warning)
+                    
+                    if result['errors']:
+                        for error in result['errors'][:5]:  # Show first 5 errors
+                            messages.error(request, error)
+                else:
+                    messages.error(request, f"❌ Import failed: {', '.join(result['errors'])}")
             
             return redirect('press_release_mailer:contact_list')
     else:

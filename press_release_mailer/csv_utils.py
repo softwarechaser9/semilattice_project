@@ -269,16 +269,17 @@ def import_contacts_from_csv(csv_file, skip_duplicates=True, update_existing=Fal
                 all_emails_in_csv.append(normalized_row[key].lower())
                 break
     
-    # Get all existing contacts with these emails in ONE query
+    # Get existing contacts for THIS USER ONLY
+    # With the new database constraint, each user can have their own copy of an email
     existing_contacts_dict = {}
+    
     if all_emails_in_csv:
-        # Query for existing contacts (case-insensitive email match)
-        existing_contacts = Contact.objects.filter(
-            created_by=created_by
-        ).filter(
+        # Query for existing contacts ONLY for the current user
+        user_existing_contacts = Contact.objects.filter(
+            created_by=created_by,
             email__in=[e.lower() for e in all_emails_in_csv]
         )
-        existing_contacts_dict = {c.email.lower(): c for c in existing_contacts}
+        existing_contacts_dict = {c.email.lower(): c for c in user_existing_contacts}
     
     # Validate and import (process row by row, but with pre-fetched duplicate data)
     for idx, row in enumerate(rows, start=2):  # Start at 2 (1 is header)
@@ -302,21 +303,23 @@ def import_contacts_from_csv(csv_file, skip_duplicates=True, update_existing=Fal
             
             email = contact_data['email'].lower()
             
-            # Check for duplicates (using pre-fetched dict - FAST!)
+            # Check for duplicates (only within current user's contacts)
             existing_contact = existing_contacts_dict.get(email)
             
             if existing_contact:
                 if update_existing:
-                    # Update existing contact
+                    # Update existing contact (user's own contact)
                     for key, value in contact_data.items():
                         if key != 'email' and value:  # Don't update email, only non-empty values
                             setattr(existing_contact, key, value)
                     existing_contact.save()
                     result['updated'] += 1
                 elif skip_duplicates:
+                    # Skip duplicate (user's own contact)
                     result['skipped'] += 1
-                    result['warnings'].append(f"Row {idx}: Skipped duplicate email: {email}")
+                    result['warnings'].append(f"Row {idx}: Skipped duplicate email (already in your contacts): {email}")
                 else:
+                    # Error on duplicate
                     result['errors'].append(f"Row {idx}: Duplicate email: {email}")
                     result['skipped'] += 1
             else:
