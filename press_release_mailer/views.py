@@ -218,9 +218,22 @@ def contact_import(request):
                     csv_file.seek(0)
                     csv_content = csv_file.read()
                     
-                    # Decode if bytes
+                    # Handle encoding - try multiple encodings like csv_utils does
                     if isinstance(csv_content, bytes):
-                        csv_content = csv_content.decode('utf-8')
+                        # Try different encodings (Excel often uses cp1252/latin-1)
+                        decoded_content = None
+                        for encoding in ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'iso-8859-1']:
+                            try:
+                                decoded_content = csv_content.decode(encoding)
+                                break
+                            except (UnicodeDecodeError, AttributeError):
+                                continue
+                        
+                        if decoded_content is None:
+                            messages.error(request, "❌ Unable to read CSV file. Please save it as UTF-8 encoding.")
+                            return redirect('press_release_mailer:contact_import')
+                        
+                        csv_content = decoded_content
                     
                     # Queue async task with file content (not file path)
                     task = import_csv_async.delay(
