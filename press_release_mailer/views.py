@@ -209,21 +209,22 @@ def contact_import(request):
             USE_ASYNC = estimated_rows > 500 or file_size > 100000  # 100KB
             
             if USE_ASYNC:
-                # ASYNC IMPORT - Save file and process in background
+                # ASYNC IMPORT - Read file content and process in background
                 try:
-                    import os
-                    import tempfile
                     from .tasks import import_csv_async
                     
-                    # Save uploaded file temporarily
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_file:
-                        for chunk in csv_file.chunks():
-                            temp_file.write(chunk)
-                        temp_file_path = temp_file.name
+                    # Read the entire file content into memory
+                    # This works across separate containers (Django web + Celery worker)
+                    csv_file.seek(0)
+                    csv_content = csv_file.read()
                     
-                    # Queue async task
+                    # Decode if bytes
+                    if isinstance(csv_content, bytes):
+                        csv_content = csv_content.decode('utf-8')
+                    
+                    # Queue async task with file content (not file path)
                     task = import_csv_async.delay(
-                        csv_file_path=temp_file_path,
+                        csv_content=csv_content,
                         skip_duplicates=skip_duplicates,
                         update_existing=update_existing,
                         user_id=request.user.id

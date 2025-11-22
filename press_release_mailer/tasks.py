@@ -353,12 +353,15 @@ def check_scheduled_distributions():
 
 
 @shared_task(bind=True)
-def import_csv_async(self, csv_file_path, skip_duplicates, update_existing, user_id):
+def import_csv_async(self, csv_content, skip_duplicates, update_existing, user_id):
     """
     Import contacts from CSV file asynchronously (for large imports)
     
+    Works with distributed containers (Django web + Celery worker on different machines)
+    by passing CSV content directly instead of relying on shared filesystem.
+    
     Args:
-        csv_file_path: Path to uploaded CSV file
+        csv_content: Raw CSV file content as string
         skip_duplicates: Skip contacts with duplicate emails
         update_existing: Update existing contacts if email matches
         user_id: ID of user importing contacts
@@ -368,25 +371,36 @@ def import_csv_async(self, csv_file_path, skip_duplicates, update_existing, user
     """
     from .csv_utils import import_contacts_from_csv
     from django.contrib.auth.models import User
-    from django.core.files import File
+    from django.core.files.uploadedfile import InMemoryUploadedFile
+    from io import BytesIO, StringIO
     
     try:
         user = User.objects.get(id=user_id)
         
-        # Open the CSV file
-        with open(csv_file_path, 'rb') as f:
-            result = import_contacts_from_csv(
-                csv_file=File(f),
-                skip_duplicates=skip_duplicates,
-                update_existing=update_existing,
-                created_by=user
-            )
+        # Convert CSV content string to file-like object
+        # csv_utils expects a file object with .read() method
+        if isinstance(csv_content, bytes):
+            csv_file = BytesIO(csv_content)
+        else:
+            # Convert string to bytes
+            csv_file = BytesIO(csv_content.encode('utf-8'))
         
-        logger.info(f"CSV import completed: {result['imported']} imported, {result['skipped']} skipped")
+        # Set a name attribute (required by some CSV parsers)
+        csv_file.name = 'uploaded.csv'
+        
+        # Import contacts using the file-like object
+        result = import_contacts_from_csv(
+            csv_file=csv_file,
+            skip_duplicates=skip_duplicates,
+            update_existing=update_existing,
+            created_by=user
+        )
+        
+        logger.info(f"CSV async import completed for user {user_id}: {result['imported']} imported, {result['skipped']} skipped")
         return result
         
     except Exception as e:
-        logger.error(f"Error in async CSV import: {str(e)}")
+        logger.error(f"Error in async CSV import for user {user_id}: {str(e)}")
         return {
             'success': False,
             'errors': [f"Import failed: {str(e)}"],
